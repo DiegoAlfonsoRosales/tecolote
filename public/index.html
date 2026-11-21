@@ -36,18 +36,28 @@
       <button id="open-settings" class="icon-btn" aria-label="Ajustes">⚙️</button>
     </header>
 
-    <div id="lists"></div>
+    <div class="layout">
+      <!-- En compu, aquí vive el formulario (en cel se mueve a la hoja flotante) -->
+      <aside id="side" class="side"></aside>
 
-    <div id="empty" class="empty" hidden>
-      <div class="empty-owl">🦉</div>
-      <p><strong>Nada pendiente.</strong></p>
-      <p class="muted">Agrega algo y yo me encargo de recordártelo.</p>
+      <div class="content">
+        <div class="columns">
+          <div id="col-a" class="col"></div>
+          <div id="col-b" class="col"></div>
+        </div>
+
+        <div id="empty" class="empty" hidden>
+          <div class="empty-owl">🦉</div>
+          <p><strong>Nada pendiente.</strong></p>
+          <p class="muted">Agrega algo y yo me encargo de recordártelo.</p>
+        </div>
+
+        <details id="done-section" class="done-section" hidden>
+          <summary>Completados (<span id="done-count">0</span>)</summary>
+          <ul id="done-list" class="tasks"></ul>
+        </details>
+      </div>
     </div>
-
-    <details id="done-section" class="done-section" hidden>
-      <summary>Completados (<span id="done-count">0</span>)</summary>
-      <ul id="done-list" class="tasks"></ul>
-    </details>
 
     <button id="add-btn" class="fab" aria-label="Nuevo pendiente">＋</button>
   </main>
@@ -57,6 +67,7 @@
     <form id="task-form" method="dialog">
       <div class="sheet-handle"></div>
       <h2 id="sheet-title">Nuevo pendiente</h2>
+      <p class="kbd-hint">Atajos: <kbd>N</kbd> nuevo · <kbd>Enter</kbd> guardar · <kbd>Esc</kbd> cancelar</p>
       <input id="f-title" placeholder="¿Qué tienes que hacer?" maxlength="200" required autocomplete="off">
       <label class="label">¿Para cuándo?</label>
       <div class="chips" id="date-chips">
@@ -87,6 +98,7 @@
     <p class="muted">Los avisos llegan a tu app de ntfy, al tema:</p>
     <p><code id="topic"></code></p>
     <button id="test-btn" class="btn primary wide">🔔 Mandar aviso de prueba</button>
+    <p class="version muted">Tecolote <span id="version"></span></p>
     <div class="rules">
       <p><strong>Cada cuánto te aviso</strong></p>
       <ul>

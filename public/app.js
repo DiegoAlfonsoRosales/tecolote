@@ -134,11 +134,14 @@ function render() {
   const today = open.filter((t) => status(t) === 'today');
   const upcoming = open.filter((t) => status(t) === 'upcoming');
 
-  const lists = $('#lists');
-  lists.replaceChildren();
-  if (overdue.length) lists.append(group('overdue', 'Vencidos', overdue));
-  if (today.length) lists.append(group('today', 'Hoy', today));
-  if (upcoming.length) lists.append(group('upcoming', 'Próximos', upcoming));
+  // En compu: columna A = Vencidos + Hoy, columna B = Próximos. En cel se apilan.
+  const colA = $('#col-a');
+  const colB = $('#col-b');
+  colA.replaceChildren();
+  colB.replaceChildren();
+  if (overdue.length) colA.append(group('overdue', 'Vencidos', overdue));
+  if (today.length) colA.append(group('today', 'Hoy', today));
+  if (upcoming.length) colB.append(group('upcoming', 'Próximos', upcoming));
 
   $('#empty').hidden = open.length > 0;
   $('#done-section').hidden = done.length === 0;
@@ -182,7 +185,38 @@ async function reopen(t) {
 }
 
 // ---------- Editor ----------
+// En cel el formulario vive en una hoja flotante; en compu, fijo en el panel lateral.
 const sheet = $('#task-sheet');
+const form = $('#task-form');
+const wide = window.matchMedia('(min-width: 1000px)');
+const isWide = () => wide.matches;
+
+function placeForm() {
+  if (isWide()) {
+    if (sheet.open) sheet.close();
+    $('#side').append(form);
+  } else {
+    sheet.append(form);
+  }
+}
+wide.addEventListener('change', () => { placeForm(); resetEditor(); });
+
+function closeEditor() {
+  if (isWide()) resetEditor();
+  else sheet.close();
+}
+
+function resetEditor() {
+  editingId = null;
+  $('#side').classList.remove('editing');
+  $('#sheet-title').textContent = 'Nuevo pendiente';
+  $('#f-title').value = '';
+  $('#f-time').value = '';
+  $('#f-notes').value = '';
+  setDate(isoDate(new Date()));
+  $('#delete-btn').hidden = true;
+  $('#cancel-btn').hidden = isWide();
+}
 
 function setDate(value) {
   $('#f-date').value = value;
@@ -199,8 +233,11 @@ function openEditor(t = null) {
   $('#f-notes').value = t ? t.notes : '';
   setDate(t ? t.dueDate : isoDate(new Date()));
   $('#delete-btn').hidden = !t;
-  sheet.showModal();
-  if (!t) setTimeout(() => $('#f-title').focus(), 50);
+  $('#cancel-btn').hidden = isWide() && !t;
+  $('#side').classList.toggle('editing', !!t);
+  if (!isWide()) sheet.showModal();
+  if (isWide()) $('#f-title').focus();
+  else if (!t) setTimeout(() => $('#f-title').focus(), 50);
 }
 
 document.querySelectorAll('#date-chips .chip').forEach((c) => {
@@ -208,7 +245,7 @@ document.querySelectorAll('#date-chips .chip').forEach((c) => {
 });
 $('#f-date').oninput = (e) => setDate(e.target.value);
 $('#add-btn').onclick = () => openEditor();
-$('#cancel-btn').onclick = () => sheet.close();
+$('#cancel-btn').onclick = closeEditor;
 sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); });
 
 $('#task-form').onsubmit = async (e) => {
@@ -227,7 +264,7 @@ $('#task-form').onsubmit = async (e) => {
       tasks.push(await api('/api/tasks', { method: 'POST', body }));
       toast('Agendado. Yo te lo recuerdo 🦉');
     }
-    sheet.close();
+    closeEditor();
     render();
   } catch (err) {
     toast(err.message);
@@ -238,7 +275,7 @@ $('#delete-btn').onclick = async () => {
   const t = tasks.find((x) => x.id === editingId);
   await api(`/api/tasks/${editingId}`, { method: 'DELETE' });
   tasks = tasks.filter((x) => x.id !== editingId);
-  sheet.close();
+  closeEditor();
   render();
   toast('Pendiente eliminado', 'Deshacer', async () => {
     tasks.push(await api('/api/tasks', { method: 'POST', body: t }));
@@ -264,6 +301,19 @@ $('#logout-btn').onclick = async () => {
   settings.close();
   showLogin();
 };
+
+// ---------- Atajos de teclado ----------
+document.addEventListener('keydown', (e) => {
+  if ($('#app').hidden || e.ctrlKey || e.metaKey || e.altKey) return;
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+  if (e.key === 'Escape' && isWide() && editingId) {
+    resetEditor();
+    document.activeElement.blur();
+  } else if (!typing && (e.key === 'n' || e.key === 'N') && !document.querySelector('dialog[open]')) {
+    e.preventDefault();
+    openEditor();
+  }
+});
 
 // ---------- Toast ----------
 let toastTimer;
@@ -309,6 +359,7 @@ $('#login-form').onsubmit = async (e) => {
 async function init() {
   try {
     const me = await api('/api/me');
+    $('#version').textContent = `v${me.version}`;
     $('#topic').textContent = `${me.server.replace(/^https?:\/\//, '')}/${me.topic || '(sin configurar)'}`;
     await showApp();
   } catch {
@@ -320,5 +371,7 @@ async function init() {
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('#app').hidden) load(); });
 setInterval(() => { if (!document.hidden && !$('#app').hidden) load(); }, 60000);
 
+placeForm();
+resetEditor();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 init();

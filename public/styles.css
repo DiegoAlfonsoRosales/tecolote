@@ -196,3 +196,33 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 120px; }
   max-width: calc(100% - 32px); z-index: 10;
 }
 .toast button { background: none; border: 0; color: var(--accent); font: inherit; font-weight: 700; cursor: pointer; padding: 0; }
+
+/* ---------- Compu (v1.1) ---------- */
+.side { display: none; }
+.columns { display: block; }
+.kbd-hint { display: none; }
+.version { font-size: 13px; margin: -4px 0 12px; }
+kbd {
+  font: 600 12px ui-monospace, monospace;
+  background: var(--surface-2); border: 1px solid var(--border); border-bottom-width: 2px;
+  border-radius: 6px; padding: 1px 6px;
+}
+
+@media (min-width: 1000px) {
+  main { max-width: 1280px; padding: 24px 32px 48px; }
+  .top { padding: 0 0 28px; }
+  .layout { display: grid; grid-template-columns: 360px 1fr; gap: 32px; align-items: start; }
+  .side {
+    display: block; position: sticky; top: 24px;
+    background: var(--surface); border-radius: 20px; padding: 22px; box-shadow: var(--shadow);
+  }
+  .side .sheet-handle { display: none; }
+  .side h2 { font-size: 19px; margin-bottom: 4px; }
+  .side form { display: flex; flex-direction: column; gap: 10px; }
+  .side .kbd-hint { display: block; font-size: 12px; color: var(--muted); margin: 0 0 8px; }
+  .side.editing { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .fab { display: none; }
+  .task-body:hover .task-title { color: var(--accent); }
+  .empty { padding: 8vh 24px; }
+}

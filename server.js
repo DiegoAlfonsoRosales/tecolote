@@ -14,6 +14,7 @@ const PASSWORD = process.env.APP_PASSWORD;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const COOKIE = 'tecolote_sesion';
+const VERSION = require('./package.json').version;
 const TEN_YEARS = 10 * 365 * 24 * 3600;
 
 if (!PASSWORD) {
@@ -221,7 +222,7 @@ async function handle(req, res) {
     if (!isLogged(req)) return send(res, 401, { error: 'Inicia sesión' });
 
     if (p === '/api/me' && m === 'GET') {
-      return send(res, 200, { ok: true, topic: ntfy.TOPIC, server: ntfy.SERVER });
+      return send(res, 200, { ok: true, version: VERSION, topic: ntfy.TOPIC, server: ntfy.SERVER });
     }
     if (p === '/api/tasks' && m === 'GET') return send(res, 200, store.all());
     if (p === '/api/tasks' && m === 'POST') {
@@ -277,7 +278,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🦉 Tecolote escuchando en el puerto ${PORT} (${PUBLIC_URL})`);
+  console.log(`🦉 Tecolote v${VERSION} escuchando en el puerto ${PORT} (${PUBLIC_URL})`);
   console.log(`   ntfy: ${ntfy.SERVER}/${ntfy.TOPIC || '(sin tema)'}`);
   tick();
   setInterval(tick, 60 * 1000);
