@@ -2,6 +2,9 @@
 
 Versiones: **X.0** cambios de estructura · **x.Y** cambios sencillos · **x.x.Z** cambios mínimos.
 
+## v1.2.1
+- Cache busting: los archivos estáticos llevan una huella de su contenido (`app.js?v=…`) y el HTML nunca se guarda en caché. Cada actualización se ve de inmediato, sin purgar Cloudflare.
+
 ## v1.2.0
 - Rutinas: tareas que se repiten ciertos días a una hora (todos los días, lunes a viernes o días a elegir).
 - Avisan a su hora y cada 30 min hasta marcarlas; al día siguiente empiezan de cero.

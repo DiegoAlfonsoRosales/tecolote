@@ -240,16 +240,46 @@ const MIME = {
   '.webmanifest': 'application/manifest+json',
 };
 
-function serveStatic(req, res, pathname) {
-  const rel = pathname === '/' ? 'index.html' : pathname.slice(1);
+// Cache busting: a cada enlace de index.html se le agrega una huella del contenido
+// del archivo (app.js?v=72caf09c12). Si el archivo cambia, cambia la huella y
+// Cloudflare y el navegador lo bajan nuevo; si no cambia, se usa la copia guardada.
+const fingerprints = new Map();
+function fingerprint(rel) {
+  if (!fingerprints.has(rel)) {
+    const data = fs.readFileSync(path.join(PUBLIC_DIR, rel));
+    fingerprints.set(rel, crypto.createHash('sha256').update(data).digest('hex').slice(0, 10));
+  }
+  return fingerprints.get(rel);
+}
+
+let indexHtml = null;
+function versionedIndex() {
+  if (!indexHtml) {
+    indexHtml = fs
+      .readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8')
+      .replace(/(href|src)="\/([\w.-]+\.(?:css|js|svg|png|webmanifest))"/g, (_, attr, rel) => `${attr}="/${rel}?v=${fingerprint(rel)}"`);
+  }
+  return indexHtml;
+}
+
+function serveStatic(req, res, pathname, search) {
+  const headers = { 'X-Content-Type-Options': 'nosniff' };
+  if (pathname === '/' || pathname === '/index.html') {
+    // El HTML nunca se guarda: así siempre trae las huellas actuales.
+    res.writeHead(200, { ...headers, 'Content-Type': MIME['.html'], 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+    return res.end(versionedIndex());
+  }
+  const rel = pathname.slice(1);
   const file = path.normalize(path.join(PUBLIC_DIR, rel));
   if (!file.startsWith(PUBLIC_DIR + path.sep)) return send(res, 404, { error: 'No encontrado' });
   fs.readFile(file, (err, data) => {
     if (err) return send(res, 404, { error: 'No encontrado' });
+    // Con huella el archivo nunca cambia bajo ese nombre: se puede guardar un año.
+    const versioned = search.has('v') && pathname !== '/sw.js';
     res.writeHead(200, {
+      ...headers,
       'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
-      'Cache-Control': 'no-cache',
-      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': versioned ? 'public, max-age=31536000, immutable' : 'no-cache',
     });
     res.end(data);
   });
@@ -363,7 +393,7 @@ async function handle(req, res) {
     return send(res, 404, { error: 'No encontrado' });
   }
 
-  if (m === 'GET') return serveStatic(req, res, p);
+  if (m === 'GET') return serveStatic(req, res, p, url.searchParams);
   return send(res, 405, { error: 'Método no permitido' });
 }
 
