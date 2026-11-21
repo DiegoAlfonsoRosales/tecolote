@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tecolote</title>
+  <meta name="theme-color" content="#16131f">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <!-- Login -->
+  <section id="login" class="login" hidden>
+    <img src="/icon.svg" alt="" class="login-logo">
+    <h1>Tecolote</h1>
+    <p class="muted">El búho que no te deja olvidar.</p>
+    <form id="login-form">
+      <input id="password" type="password" placeholder="Contraseña" autocomplete="current-password" required>
+      <button class="btn primary" type="submit">Entrar</button>
+      <p id="login-error" class="error" role="alert"></p>
+    </form>
+  </section>
+
+  <!-- App -->
+  <main id="app" hidden>
+    <header class="top">
+      <div class="brand">
+        <img src="/icon.svg" alt="">
+        <div>
+          <h1>Tecolote</h1>
+          <p id="summary" class="muted"></p>
+        </div>
+      </div>
+      <button id="open-settings" class="icon-btn" aria-label="Ajustes">⚙️</button>
+    </header>
+
+    <div id="lists"></div>
+
+    <div id="empty" class="empty" hidden>
+      <div class="empty-owl">🦉</div>
+      <p><strong>Nada pendiente.</strong></p>
+      <p class="muted">Agrega algo y yo me encargo de recordártelo.</p>
+    </div>
+
+    <details id="done-section" class="done-section" hidden>
+      <summary>Completados (<span id="done-count">0</span>)</summary>
+      <ul id="done-list" class="tasks"></ul>
+    </details>
+
+    <button id="add-btn" class="fab" aria-label="Nuevo pendiente">＋</button>
+  </main>
+
+  <!-- Hoja: nuevo / editar pendiente -->
+  <dialog id="task-sheet" class="sheet">
+    <form id="task-form" method="dialog">
+      <div class="sheet-handle"></div>
+      <h2 id="sheet-title">Nuevo pendiente</h2>
+      <input id="f-title" placeholder="¿Qué tienes que hacer?" maxlength="200" required autocomplete="off">
+      <label class="label">¿Para cuándo?</label>
+      <div class="chips" id="date-chips">
+        <button type="button" class="chip" data-days="0">Hoy</button>
+        <button type="button" class="chip" data-days="1">Mañana</button>
+        <button type="button" class="chip" data-days="2">Pasado</button>
+        <button type="button" class="chip" data-days="7">En 1 semana</button>
+      </div>
+      <div class="row">
+        <input id="f-date" type="date" required>
+        <input id="f-time" type="time" aria-label="Hora (opcional)">
+      </div>
+      <p class="hint">La hora es opcional. Sin hora, vence al terminar el día.</p>
+      <textarea id="f-notes" rows="2" placeholder="Notas (opcional)" maxlength="2000"></textarea>
+      <div class="sheet-actions">
+        <button type="button" id="delete-btn" class="btn danger" hidden>Eliminar</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" id="cancel-btn">Cancelar</button>
+        <button type="submit" class="btn primary" id="save-btn">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Hoja: ajustes -->
+  <dialog id="settings-sheet" class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>Ajustes</h2>
+    <p class="muted">Los avisos llegan a tu app de ntfy, al tema:</p>
+    <p><code id="topic"></code></p>
+    <button id="test-btn" class="btn primary wide">🔔 Mandar aviso de prueba</button>
+    <div class="rules">
+      <p><strong>Cada cuánto te aviso</strong></p>
+      <ul>
+        <li>Más de 3 días antes: 1 vez al día</li>
+        <li>3 días antes: cada 4 h</li>
+        <li>2 días antes: cada 3 h</li>
+        <li>1 día antes: cada 2 h</li>
+        <li>El mismo día y ya vencido: cada hora</li>
+        <li>Silencio de 12 am a 6 am</li>
+      </ul>
+    </div>
+    <div class="sheet-actions">
+      <button id="logout-btn" class="btn ghost">Cerrar sesión</button>
+      <span class="spacer"></span>
+      <button class="btn" id="close-settings">Listo</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

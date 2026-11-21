@@ -1,0 +1,18 @@
+services:
+  tecolote:
+    build: .
+    container_name: tecolote
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: America/Mexico_City
+    ports:
+      - "8088:8088"
+    volumes:
+      - ./data:/data
+    mem_limit: 128m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
