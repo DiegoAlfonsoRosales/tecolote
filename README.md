@@ -28,9 +28,9 @@ nano .env          # pon tu contraseña y tu tema de ntfy
 docker compose up -d --build
 ```
 
-Revisa que funcione con `curl localhost:8088/health`.
+Revisa que funcione con `curl localhost:8089/health`.
 
-Después, en Cloudflare Zero Trust, agrega al túnel una ruta pública con `tecolote.theowlsec.com` apuntando a `http://192.168.100.167:8088`.
+Después, en Cloudflare Zero Trust, agrega al túnel una ruta pública con `tecolote.theowlsec.com` apuntando a `http://192.168.100.167:8089`.
 
 ### Actualizar
 
