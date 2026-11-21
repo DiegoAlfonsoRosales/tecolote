@@ -262,3 +262,12 @@ kbd {
 .group.routines .group-title { color: var(--soon); }
 .streak { color: var(--today); font-weight: 600; }
 #routines-view .tasks { max-width: 720px; }
+
+/* ---------- Íconos SVG (v1.2.2) ---------- */
+.ic { width: 1.05em; height: 1.05em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.15em; flex: none; }
+.ic.big { width: 56px; height: 56px; stroke-width: 1.6; color: var(--soon); }
+.meta-ic { display: inline-flex; align-items: center; gap: 4px; }
+.tab, .segmented button, .btn.wide { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.icon-btn { display: grid; place-items: center; color: var(--text); }
+.icon-btn .ic { width: 20px; height: 20px; }
+.empty-img { width: 72px; height: 72px; border-radius: 18px; }

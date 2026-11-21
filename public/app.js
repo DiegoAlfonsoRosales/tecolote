@@ -5,6 +5,21 @@ let routines = [];
 let editingId = null;
 let currentTab = 'tasks';
 
+// Íconos SVG propios: los emojis no se ven en compus sin fuente de emojis (ej. Fedora).
+const ICONS = {
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+  pause: '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
+};
+function withIcon(name, text, cls = '') {
+  const span = document.createElement('span');
+  span.className = `meta-ic ${cls}`.trim();
+  span.innerHTML = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+  span.append(document.createTextNode(text));
+  return span;
+}
+
 // ---------- API ----------
 async function api(path, opts = {}) {
   const res = await fetch(path, {
@@ -89,14 +104,10 @@ function taskItem(t) {
   when.textContent = t.completedAt ? `Hecho el ${new Date(t.completedAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}` : whenLabel(t);
   meta.append(when);
   if (!t.completedAt && t.notifyCount) {
-    const n = document.createElement('span');
-    n.textContent = `🔔 ${t.notifyCount} ${t.notifyCount === 1 ? 'aviso' : 'avisos'}`;
-    meta.append(n);
+    meta.append(withIcon('bell', `${t.notifyCount} ${t.notifyCount === 1 ? 'aviso' : 'avisos'}`));
   }
   if (!t.completedAt && t.snoozedUntil && new Date(t.snoozedUntil) > new Date()) {
-    const s = document.createElement('span');
-    s.textContent = `😴 hasta ${new Date(t.snoozedUntil).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`;
-    meta.append(s);
+    meta.append(withIcon('clock', `hasta ${new Date(t.snoozedUntil).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`));
   }
   body.append(title, meta);
   if (t.notes) {
@@ -149,15 +160,10 @@ function routineItem(r, full = false) {
   when.textContent = full ? `${daysLabel(r.days)} · ${r.time}` : due ? `Ya es hora (${r.time})` : r.doneToday ? 'Hecha hoy' : `A las ${r.time}`;
   meta.append(when);
   if (r.streak > 0) {
-    const st = document.createElement('span');
-    st.className = 'streak';
-    st.textContent = `🔥 ${r.streak} ${r.streak === 1 ? 'día' : 'días'}`;
-    meta.append(st);
+    meta.append(withIcon('flame', `${r.streak} ${r.streak === 1 ? 'día' : 'días'}`, 'streak'));
   }
   if (r.paused) {
-    const ps = document.createElement('span');
-    ps.textContent = '⏸ Pausada';
-    meta.append(ps);
+    meta.append(withIcon('pause', 'Pausada'));
   }
   body.append(title, meta);
   li.append(check, body);
@@ -170,7 +176,7 @@ async function toggleRoutine(r) {
     const updated = await api(`/api/routines/${r.id}/${wasDone ? 'undo' : 'done'}`, { method: 'POST' });
     Object.assign(r, updated);
     render();
-    if (!wasDone) toast(r.streak > 1 ? `¡${r.streak} días seguidos! 🔥` : CHEERS[Math.floor(Math.random() * CHEERS.length)]);
+    if (!wasDone) toast(r.streak > 1 ? `¡${r.streak} días seguidos!` : CHEERS[Math.floor(Math.random() * CHEERS.length)]);
   } catch (e) {
     toast(e.message);
   }
@@ -237,7 +243,7 @@ function render() {
   $('#done-count').textContent = done.length;
   $('#done-list').replaceChildren(...done.slice(0, 50).map(taskItem));
 
-  let summary = 'Todo al día ✨';
+  let summary = 'Todo al día';
   if (overdue.length) summary = `${overdue.length} ${overdue.length === 1 ? 'vencido' : 'vencidos'} · ¡ponte al corriente!`;
   else if (today.length || pendingRoutines.length) {
     const parts = [];
@@ -255,7 +261,7 @@ async function load() {
 }
 
 // ---------- Acciones ----------
-const CHEERS = ['¡Bien hecho! 🎉', '¡Uno menos! 💪', '¡Eso! 🦉', '¡Listo! ✅'];
+const CHEERS = ['¡Bien hecho!', '¡Uno menos!', '¡Eso!', '¡Listo!'];
 
 async function complete(t, li, check) {
   check.classList.add('checked');
@@ -403,7 +409,7 @@ $('#task-form').onsubmit = async (e) => {
         Object.assign(routines.find((x) => x.id === editingId), updated);
       } else {
         routines.push(await api('/api/routines', { method: 'POST', body }));
-        toast('Rutina creada. Te la recuerdo cada día 🔁');
+        toast('Rutina creada. Te la recuerdo cada día');
       }
     } else {
       const body = { title: $('#f-title').value, dueDate: $('#f-date').value, dueTime: $('#f-time').value || null, notes: $('#f-notes').value };
@@ -412,7 +418,7 @@ $('#task-form').onsubmit = async (e) => {
         Object.assign(tasks.find((x) => x.id === editingId), updated);
       } else {
         tasks.push(await api('/api/tasks', { method: 'POST', body }));
-        toast('Agendado. Yo te lo recuerdo 🦉');
+        toast('Agendado. Yo te lo recuerdo');
       }
     }
     closeEditor();
@@ -452,7 +458,7 @@ settings.addEventListener('click', (e) => { if (e.target === settings) settings.
 $('#test-btn').onclick = async () => {
   try {
     await api('/api/test', { method: 'POST' });
-    toast('Aviso enviado. Revisa tu celular 📱');
+    toast('Aviso enviado. Revisa tu celular');
   } catch (e) {
     toast(e.message);
   }

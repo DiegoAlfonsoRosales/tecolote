@@ -2,6 +2,9 @@
 
 Versiones: **X.0** cambios de estructura · **x.Y** cambios sencillos · **x.x.Z** cambios mínimos.
 
+## v1.2.2
+- Íconos SVG propios en lugar de emojis en la interfaz: ahora se ven en compus sin fuente de emojis (ej. Fedora).
+
 ## v1.2.1
 - Cache busting: los archivos estáticos llevan una huella de su contenido (`app.js?v=…`) y el HTML nunca se guarda en caché. Cada actualización se ve de inmediato, sin purgar Cloudflare.
 

@@ -33,12 +33,12 @@
           <p id="summary" class="muted"></p>
         </div>
       </div>
-      <button id="open-settings" class="icon-btn" aria-label="Ajustes">⚙️</button>
+      <button id="open-settings" class="icon-btn" aria-label="Ajustes"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></button>
     </header>
 
     <nav class="tabs" role="tablist">
-      <button class="tab active" data-tab="tasks" role="tab">📋 Pendientes</button>
-      <button class="tab" data-tab="routines" role="tab">🔁 Rutinas</button>
+      <button class="tab active" data-tab="tasks" role="tab"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg> Pendientes</button>
+      <button class="tab" data-tab="routines" role="tab"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg> Rutinas</button>
     </nav>
 
     <div class="layout">
@@ -49,7 +49,7 @@
         <section id="routines-view" hidden>
           <ul id="routine-list" class="tasks"></ul>
           <div id="routines-empty" class="empty" hidden>
-            <div class="empty-owl">🔁</div>
+            <div class="empty-owl"><svg class="ic big" viewBox="0 0 24 24" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg></div>
             <p><strong>Sin rutinas todavía.</strong></p>
             <p class="muted">Ej. tender la cama a las 8:30 o darle de comer al perro.</p>
           </div>
@@ -62,7 +62,7 @@
         </div>
 
         <div id="empty" class="empty" hidden>
-          <div class="empty-owl">🦉</div>
+          <div class="empty-owl"><img src="/icon.svg" alt="" class="empty-img"></div>
           <p><strong>Nada pendiente.</strong></p>
           <p class="muted">Agrega algo y yo me encargo de recordártelo.</p>
         </div>
@@ -84,8 +84,8 @@
       <div class="sheet-handle"></div>
       <h2 id="sheet-title">Nuevo pendiente</h2>
       <div class="segmented" id="type-switch">
-        <button type="button" data-type="task" class="active">📋 Pendiente</button>
-        <button type="button" data-type="routine">🔁 Rutina</button>
+        <button type="button" data-type="task" class="active"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg> Pendiente</button>
+        <button type="button" data-type="routine"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg> Rutina</button>
       </div>
       <p class="kbd-hint">Atajos: <kbd>N</kbd> nuevo · <kbd>Enter</kbd> guardar · <kbd>Esc</kbd> cancelar</p>
       <input id="f-title" placeholder="¿Qué tienes que hacer?" maxlength="200" required autocomplete="off">
@@ -139,7 +139,7 @@
     <h2>Ajustes</h2>
     <p class="muted">Los avisos llegan a tu app de ntfy, al tema:</p>
     <p><code id="topic"></code></p>
-    <button id="test-btn" class="btn primary wide">🔔 Mandar aviso de prueba</button>
+    <button id="test-btn" class="btn primary wide"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg> Mandar aviso de prueba</button>
     <p class="version muted">Tecolote <span id="version"></span></p>
     <div class="rules">
       <p><strong>Cada cuánto te aviso</strong></p>
