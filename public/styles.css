@@ -226,3 +226,39 @@ kbd {
   .task-body:hover .task-title { color: var(--accent); }
   .empty { padding: 8vh 24px; }
 }
+
+/* ---------- Rutinas (v1.2) ---------- */
+.tabs { display: flex; gap: 6px; background: var(--surface-2); padding: 4px; border-radius: 14px; margin-bottom: 20px; }
+.tab {
+  flex: 1; font: inherit; font-weight: 600; font-size: 15px;
+  border: 0; background: transparent; color: var(--muted);
+  padding: 9px 12px; border-radius: 10px; cursor: pointer;
+}
+.tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.fields { display: flex; flex-direction: column; gap: 10px; }
+.segmented { display: flex; gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 12px; }
+.segmented button {
+  flex: 1; font: inherit; font-size: 14px; font-weight: 600;
+  border: 0; background: transparent; color: var(--muted);
+  padding: 7px; border-radius: 9px; cursor: pointer;
+}
+.segmented button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.days { display: flex; gap: 6px; justify-content: space-between; }
+.days button {
+  flex: 1; aspect-ratio: 1; max-width: 46px; border-radius: 50%;
+  font: inherit; font-weight: 700; font-size: 14px;
+  border: 1.5px solid var(--border); background: transparent; color: var(--text); cursor: pointer;
+}
+.days button.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.switch { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.switch input { width: auto; }
+
+.task.routine { border-left-color: var(--soon); }
+.task.routine.done-today { box-shadow: none; opacity: .6; }
+.task.routine.done-today .task-title { text-decoration: line-through; }
+.task.routine.done-today .check { background: var(--ok); border-color: var(--ok); color: #fff; }
+.task.routine.due .check { border-color: var(--soon); }
+.task.paused { opacity: .55; }
+.group.routines .group-title { color: var(--soon); }
+.streak { color: var(--today); font-weight: 600; }
+#routines-view .tasks { max-width: 720px; }

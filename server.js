@@ -98,6 +98,47 @@ function cleanTask(body, partial = false) {
   return out;
 }
 
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function cleanRoutine(body, partial = false) {
+  const out = {};
+  if (!partial || body.title !== undefined) {
+    const title = String(body.title || '').trim().slice(0, 200);
+    if (!title) throw new Error('La rutina necesita un título');
+    out.title = title;
+  }
+  if (!partial || body.time !== undefined) {
+    if (!HHMM_RE.test(body.time || '')) throw new Error('Hora inválida');
+    out.time = body.time;
+  }
+  if (!partial || body.days !== undefined) {
+    const days = [...new Set((Array.isArray(body.days) ? body.days : []).map(Number))].filter((d) => d >= 0 && d <= 6).sort();
+    if (!days.length) throw new Error('Elige al menos un día');
+    out.days = days;
+  }
+  if (body.notes !== undefined) out.notes = String(body.notes || '').slice(0, 2000);
+  if (body.paused !== undefined) out.paused = !!body.paused;
+  return out;
+}
+
+/** Rutina + datos calculados para la interfaz. */
+function routineView(r, now = new Date()) {
+  return {
+    ...r,
+    streak: reminders.streak(r, now),
+    doneToday: reminders.doneOn(r, now),
+    scheduledToday: reminders.isScheduled(r, now),
+  };
+}
+
+function markRoutine(id, done, now = new Date()) {
+  const r = store.getRoutine(id);
+  const today = reminders.ymd(now);
+  const doneDates = r.doneDates.filter((d) => d !== today);
+  if (done) doneDates.push(today);
+  return store.updateRoutine(id, { doneDates, snoozedUntil: null });
+}
+
 // Freno simple contra adivinar la contraseña: 5 intentos fallidos por minuto por IP.
 const failedLogins = new Map();
 function tooManyAttempts(ip) {
@@ -136,6 +177,26 @@ async function notifyTask(task, now = new Date()) {
   });
 }
 
+async function notifyRoutine(r, now) {
+  const msg = reminders.buildRoutineMessage(r, now);
+  await ntfy.publish({
+    title: msg.title,
+    body: msg.body,
+    tags: msg.tags,
+    priority: msg.priority,
+    click: PUBLIC_URL,
+    actions: [
+      {
+        action: 'http',
+        label: '✅ Hecho',
+        url: `${PUBLIC_URL}/api/rhook/${r.id}/done?t=${actionToken(r.id, 'rdone')}`,
+        method: 'POST',
+        clear: true,
+      },
+    ],
+  });
+}
+
 let ticking = false;
 async function tick() {
   if (ticking) return;
@@ -150,6 +211,18 @@ async function tick() {
         console.log(`[aviso] ${task.title}`);
       } catch (err) {
         console.error(`[error ntfy] ${task.title}: ${err.message}`);
+      }
+    }
+    for (const r of store.routines) {
+      if (!reminders.shouldNotifyRoutine(r, now)) continue;
+      const last = r.lastNotifiedAt ? new Date(r.lastNotifiedAt) : null;
+      const countToday = last && reminders.ymd(last) === reminders.ymd(now) ? r.notifyCountToday || 0 : 0;
+      try {
+        await notifyRoutine({ ...r, notifyCountToday: countToday }, now);
+        store.updateRoutine(r.id, { lastNotifiedAt: now.toISOString(), notifyCountToday: countToday + 1 });
+        console.log(`[rutina] ${r.title}`);
+      } catch (err) {
+        console.error(`[error ntfy] ${r.title}: ${err.message}`);
       }
     }
   } finally {
@@ -218,6 +291,15 @@ async function handle(req, res) {
     return send(res, 200, { ok: true });
   }
 
+  const rhook = p.match(/^\/api\/rhook\/([\w-]+)\/done$/);
+  if (rhook && m === 'POST') {
+    const id = rhook[1];
+    if (!safeEqual(url.searchParams.get('t') || '', actionToken(id, 'rdone'))) return send(res, 403, { error: 'Token inválido' });
+    if (!store.getRoutine(id)) return send(res, 404, { error: 'No existe' });
+    markRoutine(id, true);
+    return send(res, 200, { ok: true });
+  }
+
   if (p.startsWith('/api/')) {
     if (!isLogged(req)) return send(res, 401, { error: 'Inicia sesión' });
 
@@ -238,6 +320,22 @@ async function handle(req, res) {
         click: PUBLIC_URL,
       });
       return send(res, 200, { ok: true });
+    }
+
+    if (p === '/api/routines' && m === 'GET') return send(res, 200, store.routines.map((r) => routineView(r)));
+    if (p === '/api/routines' && m === 'POST') {
+      return send(res, 201, routineView(store.createRoutine(cleanRoutine(await readBody(req)))));
+    }
+    const rt = p.match(/^\/api\/routines\/([\w-]+)(?:\/(done|undo))?$/);
+    if (rt) {
+      const [, id, action] = rt;
+      if (!store.getRoutine(id)) return send(res, 404, { error: 'No existe' });
+      if (action && m === 'POST') return send(res, 200, routineView(markRoutine(id, action === 'done')));
+      if (!action && m === 'PATCH') return send(res, 200, routineView(store.updateRoutine(id, cleanRoutine(await readBody(req), true))));
+      if (!action && m === 'DELETE') {
+        store.removeRoutine(id);
+        return send(res, 204);
+      }
     }
 
     const one = p.match(/^\/api\/tasks\/([\w-]+)(?:\/(complete|reopen))?$/);
@@ -271,7 +369,7 @@ async function handle(req, res) {
 
 const server = http.createServer((req, res) => {
   handle(req, res).catch((err) => {
-    const status = /inválid|necesita|Demasiado/.test(err.message) ? 400 : 500;
+    const status = /inválid|necesita|Demasiado|Elige/.test(err.message) ? 400 : 500;
     if (status === 500) console.error(err);
     send(res, status, { error: err.message });
   });

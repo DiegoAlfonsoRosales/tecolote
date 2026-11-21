@@ -1,7 +1,9 @@
 // Tecolote: interfaz
 const $ = (s) => document.querySelector(s);
 let tasks = [];
+let routines = [];
 let editingId = null;
+let currentTab = 'tasks';
 
 // ---------- API ----------
 async function api(path, opts = {}) {
@@ -107,7 +109,84 @@ function taskItem(t) {
   return li;
 }
 
-function group(cls, label, items) {
+// ---------- Rutinas ----------
+const DAY_LETTERS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+function daysLabel(days) {
+  const k = [...days].sort().join(',');
+  if (k === '0,1,2,3,4,5,6') return 'Todos los días';
+  if (k === '1,2,3,4,5') return 'Lunes a viernes';
+  if (k === '0,6') return 'Fines de semana';
+  return [1, 2, 3, 4, 5, 6, 0].filter((d) => days.includes(d)).map((d) => DAY_LETTERS[d]).join(' ');
+}
+function routineIsDue(r) {
+  const [h, m] = r.time.split(':').map(Number);
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes() >= h * 60 + m;
+}
+
+function routineItem(r, full = false) {
+  const li = document.createElement('li');
+  const due = !r.doneToday && r.scheduledToday && routineIsDue(r);
+  li.className = `task routine${r.doneToday && (r.scheduledToday || !full) ? ' done-today' : ''}${due ? ' due' : ''}${r.paused ? ' paused' : ''}`;
+
+  const check = document.createElement('button');
+  check.className = 'check';
+  check.textContent = '✓';
+  check.setAttribute('aria-label', r.doneToday ? 'Desmarcar' : 'Marcar como hecha hoy');
+  check.hidden = full && !r.scheduledToday;
+  check.onclick = () => toggleRoutine(r);
+
+  const body = document.createElement('div');
+  body.className = 'task-body';
+  body.onclick = () => openEditor(r, 'routine');
+  const title = document.createElement('div');
+  title.className = 'task-title';
+  title.textContent = r.title;
+  const meta = document.createElement('div');
+  meta.className = 'task-meta';
+  const when = document.createElement('span');
+  when.className = 'when';
+  when.textContent = full ? `${daysLabel(r.days)} · ${r.time}` : due ? `Ya es hora (${r.time})` : r.doneToday ? 'Hecha hoy' : `A las ${r.time}`;
+  meta.append(when);
+  if (r.streak > 0) {
+    const st = document.createElement('span');
+    st.className = 'streak';
+    st.textContent = `🔥 ${r.streak} ${r.streak === 1 ? 'día' : 'días'}`;
+    meta.append(st);
+  }
+  if (r.paused) {
+    const ps = document.createElement('span');
+    ps.textContent = '⏸ Pausada';
+    meta.append(ps);
+  }
+  body.append(title, meta);
+  li.append(check, body);
+  return li;
+}
+
+async function toggleRoutine(r) {
+  const wasDone = r.doneToday;
+  try {
+    const updated = await api(`/api/routines/${r.id}/${wasDone ? 'undo' : 'done'}`, { method: 'POST' });
+    Object.assign(r, updated);
+    render();
+    if (!wasDone) toast(r.streak > 1 ? `¡${r.streak} días seguidos! 🔥` : CHEERS[Math.floor(Math.random() * CHEERS.length)]);
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+function setTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  $('#tasks-view').hidden = tab !== 'tasks';
+  $('#routines-view').hidden = tab !== 'routines';
+  if (!editingId) resetEditor();
+  try { localStorage.setItem('tecolote-tab', tab); } catch { /* sin almacenamiento */ }
+}
+document.querySelectorAll('.tab').forEach((b) => { b.onclick = () => setTab(b.dataset.tab); });
+
+function group(cls, label, items, itemFn = taskItem) {
   const sec = document.createElement('section');
   sec.className = `group ${cls}`;
   const h = document.createElement('h3');
@@ -121,7 +200,7 @@ function group(cls, label, items) {
   h.append(badge);
   const ul = document.createElement('ul');
   ul.className = 'tasks';
-  items.forEach((t) => ul.append(taskItem(t)));
+  items.forEach((t) => ul.append(itemFn(t)));
   sec.append(h, ul);
   return sec;
 }
@@ -139,24 +218,39 @@ function render() {
   const colB = $('#col-b');
   colA.replaceChildren();
   colB.replaceChildren();
+  const byTime = (a, b) => a.time.localeCompare(b.time);
+  const todayRoutines = routines.filter((r) => r.scheduledToday && !r.paused).sort(byTime);
+  const pendingRoutines = todayRoutines.filter((r) => !r.doneToday);
+  if (todayRoutines.length) {
+    const g = group('routines', 'Rutinas de hoy', todayRoutines, (r) => routineItem(r));
+    g.querySelector('.badge span').textContent = `${todayRoutines.length - pendingRoutines.length}/${todayRoutines.length}`;
+    colA.append(g);
+  }
   if (overdue.length) colA.append(group('overdue', 'Vencidos', overdue));
   if (today.length) colA.append(group('today', 'Hoy', today));
   if (upcoming.length) colB.append(group('upcoming', 'Próximos', upcoming));
 
-  $('#empty').hidden = open.length > 0;
+  $('#empty').hidden = open.length > 0 || todayRoutines.length > 0;
+  $('#routine-list').replaceChildren(...[...routines].sort(byTime).map((r) => routineItem(r, true)));
+  $('#routines-empty').hidden = routines.length > 0;
   $('#done-section').hidden = done.length === 0;
   $('#done-count').textContent = done.length;
   $('#done-list').replaceChildren(...done.slice(0, 50).map(taskItem));
 
   let summary = 'Todo al día ✨';
   if (overdue.length) summary = `${overdue.length} ${overdue.length === 1 ? 'vencido' : 'vencidos'} · ¡ponte al corriente!`;
-  else if (today.length) summary = `${today.length} para hoy`;
+  else if (today.length || pendingRoutines.length) {
+    const parts = [];
+    if (today.length) parts.push(`${today.length} para hoy`);
+    if (pendingRoutines.length) parts.push(`${pendingRoutines.length} ${pendingRoutines.length === 1 ? 'rutina' : 'rutinas'}`);
+    summary = parts.join(' · ');
+  }
   else if (open.length) summary = `${open.length} ${open.length === 1 ? 'pendiente' : 'pendientes'}`;
   $('#summary').textContent = summary;
 }
 
 async function load() {
-  tasks = await api('/api/tasks');
+  [tasks, routines] = await Promise.all([api('/api/tasks'), api('/api/routines')]);
   render();
 }
 
@@ -186,10 +280,13 @@ async function reopen(t) {
 
 // ---------- Editor ----------
 // En cel el formulario vive en una hoja flotante; en compu, fijo en el panel lateral.
+// Sirve para pendientes y rutinas (selector arriba del formulario).
 const sheet = $('#task-sheet');
 const form = $('#task-form');
 const wide = window.matchMedia('(min-width: 1000px)');
 const isWide = () => wide.matches;
+let editType = 'task';
+let selectedDays = new Set([1, 2, 3, 4, 5]);
 
 function placeForm() {
   if (isWide()) {
@@ -201,21 +298,11 @@ function placeForm() {
 }
 wide.addEventListener('change', () => { placeForm(); resetEditor(); });
 
+const defaultType = () => (currentTab === 'routines' ? 'routine' : 'task');
+
 function closeEditor() {
   if (isWide()) resetEditor();
   else sheet.close();
-}
-
-function resetEditor() {
-  editingId = null;
-  $('#side').classList.remove('editing');
-  $('#sheet-title').textContent = 'Nuevo pendiente';
-  $('#f-title').value = '';
-  $('#f-time').value = '';
-  $('#f-notes').value = '';
-  setDate(isoDate(new Date()));
-  $('#delete-btn').hidden = true;
-  $('#cancel-btn').hidden = isWide();
 }
 
 function setDate(value) {
@@ -225,23 +312,79 @@ function setDate(value) {
   });
 }
 
-function openEditor(t = null) {
-  editingId = t ? t.id : null;
-  $('#sheet-title').textContent = t ? 'Editar pendiente' : 'Nuevo pendiente';
-  $('#f-title').value = t ? t.title : '';
-  $('#f-time').value = t && t.dueTime ? t.dueTime : '';
-  $('#f-notes').value = t ? t.notes : '';
-  setDate(t ? t.dueDate : isoDate(new Date()));
-  $('#delete-btn').hidden = !t;
-  $('#cancel-btn').hidden = isWide() && !t;
-  $('#side').classList.toggle('editing', !!t);
-  if (!isWide()) sheet.showModal();
-  if (isWide()) $('#f-title').focus();
-  else if (!t) setTimeout(() => $('#f-title').focus(), 50);
+function renderDays() {
+  document.querySelectorAll('#day-picker button').forEach((b) => b.classList.toggle('active', selectedDays.has(+b.dataset.day)));
+  const key = [...selectedDays].sort().join(',');
+  document.querySelectorAll('#day-presets .chip').forEach((c) => {
+    c.classList.toggle('active', c.dataset.preset.split(',').map(Number).sort().join(',') === key);
+  });
 }
 
+function setType(type) {
+  editType = type;
+  const isRoutine = type === 'routine';
+  document.querySelectorAll('#type-switch button').forEach((b) => b.classList.toggle('active', b.dataset.type === type));
+  $('#task-fields').hidden = isRoutine;
+  $('#routine-fields').hidden = !isRoutine;
+  $('#f-date').required = !isRoutine;
+  $('#f-rtime').required = isRoutine;
+  $('#f-title').placeholder = isRoutine ? '¿Qué haces cada día? (ej. tender la cama)' : '¿Qué tienes que hacer?';
+  const noun = isRoutine ? 'rutina' : 'pendiente';
+  $('#sheet-title').textContent = editingId ? `Editar ${noun}` : `${isRoutine ? 'Nueva' : 'Nuevo'} ${noun}`;
+}
+
+function fillEditor(item, type) {
+  editingId = item ? item.id : null;
+  $('#type-switch').hidden = !!item; // al editar no se cambia el tipo
+  $('#f-title').value = item ? item.title : '';
+  $('#f-notes').value = item ? item.notes : '';
+  if (type === 'routine') {
+    $('#f-rtime').value = item ? item.time : '08:30';
+    selectedDays = new Set(item ? item.days : [1, 2, 3, 4, 5]);
+    $('#f-paused').checked = !!(item && item.paused);
+    $('#pause-row').hidden = !item;
+    renderDays();
+  } else {
+    $('#f-time').value = item && item.dueTime ? item.dueTime : '';
+    setDate(item ? item.dueDate : isoDate(new Date()));
+  }
+  setType(type);
+  $('#delete-btn').hidden = !item;
+  $('#cancel-btn').hidden = isWide() && !item;
+  $('#side').classList.toggle('editing', !!item);
+}
+
+function resetEditor() {
+  fillEditor(null, defaultType());
+}
+
+function openEditor(item = null, type = defaultType()) {
+  fillEditor(item, type);
+  if (!isWide()) sheet.showModal();
+  if (isWide()) $('#f-title').focus();
+  else if (!item) setTimeout(() => $('#f-title').focus(), 50);
+}
+
+document.querySelectorAll('#type-switch button').forEach((b) => {
+  b.onclick = () => {
+    const title = $('#f-title').value;
+    fillEditor(null, b.dataset.type);
+    $('#f-title').value = title;
+  };
+});
 document.querySelectorAll('#date-chips .chip').forEach((c) => {
   c.onclick = () => setDate(isoDate(addDays(+c.dataset.days)));
+});
+document.querySelectorAll('#day-picker button').forEach((b) => {
+  b.onclick = () => {
+    const d = +b.dataset.day;
+    if (selectedDays.has(d)) selectedDays.delete(d);
+    else selectedDays.add(d);
+    renderDays();
+  };
+});
+document.querySelectorAll('#day-presets .chip').forEach((c) => {
+  c.onclick = () => { selectedDays = new Set(c.dataset.preset.split(',').map(Number)); renderDays(); };
 });
 $('#f-date').oninput = (e) => setDate(e.target.value);
 $('#add-btn').onclick = () => openEditor();
@@ -250,19 +393,27 @@ sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); 
 
 $('#task-form').onsubmit = async (e) => {
   e.preventDefault();
-  const body = {
-    title: $('#f-title').value,
-    dueDate: $('#f-date').value,
-    dueTime: $('#f-time').value || null,
-    notes: $('#f-notes').value,
-  };
   try {
-    if (editingId) {
-      const updated = await api(`/api/tasks/${editingId}`, { method: 'PATCH', body });
-      Object.assign(tasks.find((x) => x.id === editingId), updated);
+    if (editType === 'routine') {
+      if (!selectedDays.size) throw new Error('Elige al menos un día');
+      const body = { title: $('#f-title').value, time: $('#f-rtime').value, days: [...selectedDays], notes: $('#f-notes').value };
+      if (editingId) {
+        body.paused = $('#f-paused').checked;
+        const updated = await api(`/api/routines/${editingId}`, { method: 'PATCH', body });
+        Object.assign(routines.find((x) => x.id === editingId), updated);
+      } else {
+        routines.push(await api('/api/routines', { method: 'POST', body }));
+        toast('Rutina creada. Te la recuerdo cada día 🔁');
+      }
     } else {
-      tasks.push(await api('/api/tasks', { method: 'POST', body }));
-      toast('Agendado. Yo te lo recuerdo 🦉');
+      const body = { title: $('#f-title').value, dueDate: $('#f-date').value, dueTime: $('#f-time').value || null, notes: $('#f-notes').value };
+      if (editingId) {
+        const updated = await api(`/api/tasks/${editingId}`, { method: 'PATCH', body });
+        Object.assign(tasks.find((x) => x.id === editingId), updated);
+      } else {
+        tasks.push(await api('/api/tasks', { method: 'POST', body }));
+        toast('Agendado. Yo te lo recuerdo 🦉');
+      }
     }
     closeEditor();
     render();
@@ -272,6 +423,16 @@ $('#task-form').onsubmit = async (e) => {
 };
 
 $('#delete-btn').onclick = async () => {
+  if (editType === 'routine') {
+    const r = routines.find((x) => x.id === editingId);
+    if (!window.confirm(`¿Eliminar la rutina "${r.title}"? Se pierde su racha.`)) return;
+    await api(`/api/routines/${editingId}`, { method: 'DELETE' });
+    routines = routines.filter((x) => x.id !== editingId);
+    closeEditor();
+    render();
+    toast('Rutina eliminada');
+    return;
+  }
   const t = tasks.find((x) => x.id === editingId);
   await api(`/api/tasks/${editingId}`, { method: 'DELETE' });
   tasks = tasks.filter((x) => x.id !== editingId);
@@ -372,6 +533,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && !$
 setInterval(() => { if (!document.hidden && !$('#app').hidden) load(); }, 60000);
 
 placeForm();
-resetEditor();
+try { if (localStorage.getItem('tecolote-tab') === 'routines') currentTab = 'routines'; } catch { /* nada */ }
+setTab(currentTab);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 init();

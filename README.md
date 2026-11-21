@@ -1,5 +1,7 @@
 # 🦉 Tecolote
 
+Versión actual en [`CHANGELOG.md`](CHANGELOG.md).
+
 Pendientes con recordatorios **insistentes** por [ntfy](https://ntfy.sh): te avisa antes de la fecha límite, el mismo día y después de que se vence, hasta que lo marcas como completado.
 
 ## Cada cuánto avisa
@@ -13,6 +15,7 @@ Pendientes con recordatorios **insistentes** por [ntfy](https://ntfy.sh): te avi
 | El mismo día | cada hora | alta |
 | Ya vencido | cada hora | urgente |
 
+- **Rutinas** (ej. tender la cama a las 8:30): avisan a su hora y cada 30 min hasta que las marcas; al otro día empiezan de nuevo. Llevan racha 🔥.
 - Silencio de **12 am a 6 am**.
 - Sin hora, el pendiente vence al terminar el día.
 - Cada notificación trae dos botones: **✅ Completada** y **😴 En 1 hora**.

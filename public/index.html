@@ -36,11 +36,26 @@
       <button id="open-settings" class="icon-btn" aria-label="Ajustes">⚙️</button>
     </header>
 
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="tasks" role="tab">📋 Pendientes</button>
+      <button class="tab" data-tab="routines" role="tab">🔁 Rutinas</button>
+    </nav>
+
     <div class="layout">
       <!-- En compu, aquí vive el formulario (en cel se mueve a la hoja flotante) -->
       <aside id="side" class="side"></aside>
 
       <div class="content">
+        <section id="routines-view" hidden>
+          <ul id="routine-list" class="tasks"></ul>
+          <div id="routines-empty" class="empty" hidden>
+            <div class="empty-owl">🔁</div>
+            <p><strong>Sin rutinas todavía.</strong></p>
+            <p class="muted">Ej. tender la cama a las 8:30 o darle de comer al perro.</p>
+          </div>
+        </section>
+
+        <div id="tasks-view">
         <div class="columns">
           <div id="col-a" class="col"></div>
           <div id="col-b" class="col"></div>
@@ -56,6 +71,7 @@
           <summary>Completados (<span id="done-count">0</span>)</summary>
           <ul id="done-list" class="tasks"></ul>
         </details>
+        </div>
       </div>
     </div>
 
@@ -67,8 +83,13 @@
     <form id="task-form" method="dialog">
       <div class="sheet-handle"></div>
       <h2 id="sheet-title">Nuevo pendiente</h2>
+      <div class="segmented" id="type-switch">
+        <button type="button" data-type="task" class="active">📋 Pendiente</button>
+        <button type="button" data-type="routine">🔁 Rutina</button>
+      </div>
       <p class="kbd-hint">Atajos: <kbd>N</kbd> nuevo · <kbd>Enter</kbd> guardar · <kbd>Esc</kbd> cancelar</p>
       <input id="f-title" placeholder="¿Qué tienes que hacer?" maxlength="200" required autocomplete="off">
+      <div id="task-fields" class="fields">
       <label class="label">¿Para cuándo?</label>
       <div class="chips" id="date-chips">
         <button type="button" class="chip" data-days="0">Hoy</button>
@@ -81,6 +102,27 @@
         <input id="f-time" type="time" aria-label="Hora (opcional)">
       </div>
       <p class="hint">La hora es opcional. Sin hora, vence al terminar el día.</p>
+      </div>
+      <div id="routine-fields" class="fields" hidden>
+        <label class="label">¿Qué días?</label>
+        <div class="chips" id="day-presets">
+          <button type="button" class="chip" data-preset="0,1,2,3,4,5,6">Todos los días</button>
+          <button type="button" class="chip" data-preset="1,2,3,4,5">Lunes a viernes</button>
+        </div>
+        <div class="days" id="day-picker">
+          <button type="button" data-day="1">L</button>
+          <button type="button" data-day="2">M</button>
+          <button type="button" data-day="3">M</button>
+          <button type="button" data-day="4">J</button>
+          <button type="button" data-day="5">V</button>
+          <button type="button" data-day="6">S</button>
+          <button type="button" data-day="0">D</button>
+        </div>
+        <label class="label" for="f-rtime">¿A qué hora?</label>
+        <input id="f-rtime" type="time" value="08:30">
+        <p class="hint">Te aviso a esa hora y cada 30 min hasta que la marques. Al otro día empieza de nuevo.</p>
+        <label class="switch" id="pause-row" hidden><input type="checkbox" id="f-paused"> Pausar esta rutina</label>
+      </div>
       <textarea id="f-notes" rows="2" placeholder="Notas (opcional)" maxlength="2000"></textarea>
       <div class="sheet-actions">
         <button type="button" id="delete-btn" class="btn danger" hidden>Eliminar</button>
@@ -107,6 +149,7 @@
         <li>2 días antes: cada 3 h</li>
         <li>1 día antes: cada 2 h</li>
         <li>El mismo día y ya vencido: cada hora</li>
+        <li>Rutinas: a su hora y cada 30 min hasta marcarlas</li>
         <li>Silencio de 12 am a 6 am</li>
       </ul>
     </div>
