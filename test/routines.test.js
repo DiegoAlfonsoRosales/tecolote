@@ -10,13 +10,13 @@ const dog = routine({ id: 'b', title: 'Darle de comer al perro', time: '19:00', 
 
 test('aviso agrupado desde que despiertas hasta la hora límite, cada 15 min', () => {
   const list = [routine(), dog];
-  assert.equal(r.shouldNotifyRoutines(list, null, at('2026-11-23T05:59')), false); // silencio
-  assert.equal(r.shouldNotifyRoutines(list, null, at('2026-11-23T06:00')), true);
-  const last = at('2026-11-23T06:00').toISOString();
-  assert.equal(r.shouldNotifyRoutines(list, last, at('2026-11-23T06:10')), false);
-  assert.equal(r.shouldNotifyRoutines(list, last, at('2026-11-23T06:15')), true);
+  assert.equal(r.shouldNotifyRoutines(list, null, at('2026-11-23T06:30')), false); // aún no despiertas
+  assert.equal(r.shouldNotifyRoutines(list, null, at('2026-11-23T07:00')), true);
+  const last = at('2026-11-23T07:00').toISOString();
+  assert.equal(r.shouldNotifyRoutines(list, last, at('2026-11-23T07:10')), false);
+  assert.equal(r.shouldNotifyRoutines(list, last, at('2026-11-23T07:15')), true);
   // aviso de ayer no cuenta
-  assert.equal(r.shouldNotifyRoutines(list, at('2026-11-22T21:00').toISOString(), at('2026-11-23T06:01')), true);
+  assert.equal(r.shouldNotifyRoutines(list, at('2026-11-22T21:00').toISOString(), at('2026-11-23T07:01')), true);
 });
 
 test('el aviso agrupado lista solo las que siguen a tiempo', () => {

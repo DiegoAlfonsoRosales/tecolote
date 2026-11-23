@@ -370,7 +370,7 @@ async function handle(req, res) {
     if (!isLogged(req)) return send(res, 401, { error: 'Inicia sesión' });
 
     if (p === '/api/me' && m === 'GET') {
-      return send(res, 200, { ok: true, version: VERSION, topic: ntfy.TOPIC, server: ntfy.SERVER, calUrl: calUrl() });
+      return send(res, 200, { ok: true, version: VERSION, topic: ntfy.TOPIC, server: ntfy.SERVER, calUrl: calUrl(), wakeHour: reminders.WAKE_HOUR });
     }
     if (p === '/api/tasks' && m === 'GET') return send(res, 200, store.all());
     if (p === '/api/tasks' && m === 'POST') {

@@ -2,6 +2,9 @@
 
 Versiones: **X.0** cambios de estructura · **x.Y** cambios sencillos · **x.x.Z** cambios mínimos.
 
+## v2.0.1
+- Las rutinas se recuerdan desde las 7:00 (hora de despertar, ajustable con `WAKE_HOUR`).
+
 ## v2.0.0
 - **Rutinas con hora límite**: se recuerdan desde las 6:00 hasta su hora límite. Si pasa sin marcarla, llega "⚠️ Te saltaste…" y la racha se rompe.
 - **Un solo aviso para todas las rutinas pendientes**, con un botón ✅ por rutina (hasta 3), cada 15 min.

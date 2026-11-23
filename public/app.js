@@ -552,6 +552,7 @@ async function init() {
     const me = await api('/api/me');
     $('#version').textContent = `v${me.version}`;
     $('#cal-url').value = me.calUrl || '';
+    document.querySelectorAll('.wake-hour').forEach((el) => { el.textContent = `${me.wakeHour}:00`; });
     $('#topic').textContent = `${me.server.replace(/^https?:\/\//, '')}/${me.topic || '(sin configurar)'}`;
     await showApp();
   } catch {
