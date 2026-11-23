@@ -1,6 +1,6 @@
 {
   "name": "tecolote",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Pendientes con recordatorios insistentes por ntfy",
   "main": "server.js",
   "private": true,

@@ -2,6 +2,10 @@
 
 Versiones: **X.0** cambios de estructura · **x.Y** cambios sencillos · **x.x.Z** cambios mínimos.
 
+## v2.0.2
+- Tocar la notificación ya no abre Tecolote: abre ntfy, que es lo que calla la alerta insistente de prioridad máxima.
+- Nuevo botón "🦉 Abrir Tecolote" en cada aviso. El aviso de rutinas muestra hasta 2 botones ✅ (ntfy permite 3 en total).
+
 ## v2.0.1
 - Las rutinas se recuerdan desde las 7:00 (hora de despertar, ajustable con `WAKE_HOUR`).
 

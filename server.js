@@ -167,6 +167,9 @@ function tooManyAttempts(ip) {
 const clientIp = (req) => req.headers['cf-connecting-ip'] || req.socket.remoteAddress;
 
 // ---------- notificaciones ----------
+// v2.0.2: los avisos ya no abren Tecolote al tocarlos. Al tocar la notificación se abre ntfy,
+// que es lo que calla la alerta insistente de prioridad máxima. Para ir a Tecolote está el botón.
+const openAction = { action: 'view', label: '🦉 Abrir Tecolote', url: PUBLIC_URL, clear: true };
 async function notifyTask(task, now = new Date()) {
   const msg = reminders.buildMessage(task, now);
   await ntfy.publish({
@@ -175,7 +178,6 @@ async function notifyTask(task, now = new Date()) {
     body: msg.body,
     tags: msg.tags,
     priority: msg.priority,
-    click: PUBLIC_URL,
     actions: [
       {
         action: 'http',
@@ -191,6 +193,7 @@ async function notifyTask(task, now = new Date()) {
         method: 'POST',
         clear: true,
       },
+      openAction,
     ],
   });
 }
@@ -205,14 +208,13 @@ async function notifyRoutines(now) {
     body: msg.body,
     tags: msg.tags,
     priority: msg.priority,
-    click: PUBLIC_URL,
-    actions: msg.pending.slice(0, 3).map((r) => ({
+    actions: [...msg.pending.slice(0, 2).map((r) => ({
       action: 'http',
       label: `✅ ${short(r.title)}`,
       url: `${PUBLIC_URL}/api/rhook/${r.id}/done?t=${actionToken(r.id, 'rdone')}`,
       method: 'POST',
       clear: true,
-    })),
+    })), openAction],
   });
   return msg.pending.length;
 }
@@ -246,7 +248,7 @@ async function tick() {
       if (!reminders.shouldNotifyMissed(r, now)) continue;
       try {
         const msg = reminders.buildMissedMessage(r, now);
-        await ntfy.publish({ sequenceId: `miss-${r.id}`, ...msg, click: PUBLIC_URL });
+        await ntfy.publish({ sequenceId: `miss-${r.id}`, ...msg, actions: [openAction] });
         store.updateRoutine(r.id, { missedNotifiedDate: reminders.ymd(now) });
         console.log(`[saltada] ${r.title}`);
       } catch (err) {
@@ -383,8 +385,7 @@ async function handle(req, res) {
         body: 'Así te llegarán los recordatorios de tus pendientes.',
         tags: ['owl'],
         priority: 3,
-        click: PUBLIC_URL,
-      });
+          });
       return send(res, 200, { ok: true });
     }
 
