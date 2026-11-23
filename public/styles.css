@@ -271,3 +271,13 @@ kbd {
 .icon-btn { display: grid; place-items: center; color: var(--text); }
 .icon-btn .ic { width: 20px; height: 20px; }
 .empty-img { width: 72px; height: 72px; border-radius: 18px; }
+
+/* ---------- v2.0 ---------- */
+.task.routine.missed { border-left-color: var(--overdue); background: var(--overdue-bg); }
+.task.routine.missed .when { color: var(--overdue); font-weight: 600; }
+.task.routine.missed .check { border-color: var(--overdue); }
+.task.routine.due .when { color: var(--today); font-weight: 600; }
+.rules.cal { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.rules.cal .muted { font-size: 13px; }
+#cal-url { font-size: 12px; padding: 9px 10px; background: var(--surface); }
+.settings-scroll { overflow-y: auto; }

@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { Store } = require('./lib/store');
 const reminders = require('./lib/reminders');
 const ntfy = require('./lib/ntfy');
+const { buildCalendar } = require('./lib/ics');
 
 const PORT = parseInt(process.env.PORT || '8088', 10);
 const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
@@ -30,6 +31,9 @@ const hmac = (txt) => crypto.createHmac('sha256', SECRET).update(txt).digest('he
 // La sesión depende de la contraseña: si la cambias, se cierran todas las sesiones.
 const sessionToken = () => hmac(`sesion:${crypto.createHash('sha256').update(PASSWORD).digest('hex')}`);
 const actionToken = (id, action) => hmac(`${action}:${id}`);
+// Enlace secreto del calendario (.ics) para ICSx⁵.
+const calToken = () => hmac('calendario').slice(0, 32);
+const calUrl = () => `${PUBLIC_URL}/cal/${calToken()}.ics`;
 
 function safeEqual(a, b) {
   const ba = Buffer.from(String(a));
@@ -136,7 +140,20 @@ function markRoutine(id, done, now = new Date()) {
   const today = reminders.ymd(now);
   const doneDates = r.doneDates.filter((d) => d !== today);
   if (done) doneDates.push(today);
-  return store.updateRoutine(id, { doneDates, snoozedUntil: null });
+  const updated = store.updateRoutine(id, { doneDates });
+  // Si ya no queda ninguna rutina pendiente hoy, quita el aviso agrupado del cel.
+  if (done && !reminders.pendingRoutines(store.routines, now).length) ntfy.clear(routinesSeq(now));
+  if (done) ntfy.clear(`miss-${id}`);
+  return updated;
+}
+
+// Ids de notificación (sequence id de ntfy): un aviso nuevo con el mismo id reemplaza al anterior.
+const taskSeq = (id) => `t-${id}`;
+const routinesSeq = (now) => `rut-${reminders.ymd(now)}`;
+
+function completeTask(id) {
+  ntfy.clear(taskSeq(id));
+  return store.update(id, { completedAt: new Date().toISOString() });
 }
 
 // Freno simple contra adivinar la contraseña: 5 intentos fallidos por minuto por IP.
@@ -153,6 +170,7 @@ const clientIp = (req) => req.headers['cf-connecting-ip'] || req.socket.remoteAd
 async function notifyTask(task, now = new Date()) {
   const msg = reminders.buildMessage(task, now);
   await ntfy.publish({
+    sequenceId: taskSeq(task.id),
     title: msg.title,
     body: msg.body,
     tags: msg.tags,
@@ -177,24 +195,26 @@ async function notifyTask(task, now = new Date()) {
   });
 }
 
-async function notifyRoutine(r, now) {
-  const msg = reminders.buildRoutineMessage(r, now);
+/** Un solo aviso con todas las rutinas pendientes; un botón "✅" por cada una (máx. 3, límite de ntfy). */
+async function notifyRoutines(now) {
+  const msg = reminders.buildRoutinesMessage(store.routines, now);
+  const short = (t) => (t.length > 22 ? `${t.slice(0, 21)}…` : t);
   await ntfy.publish({
+    sequenceId: routinesSeq(now),
     title: msg.title,
     body: msg.body,
     tags: msg.tags,
     priority: msg.priority,
     click: PUBLIC_URL,
-    actions: [
-      {
-        action: 'http',
-        label: '✅ Hecho',
-        url: `${PUBLIC_URL}/api/rhook/${r.id}/done?t=${actionToken(r.id, 'rdone')}`,
-        method: 'POST',
-        clear: true,
-      },
-    ],
+    actions: msg.pending.slice(0, 3).map((r) => ({
+      action: 'http',
+      label: `✅ ${short(r.title)}`,
+      url: `${PUBLIC_URL}/api/rhook/${r.id}/done?t=${actionToken(r.id, 'rdone')}`,
+      method: 'POST',
+      clear: true,
+    })),
   });
+  return msg.pending.length;
 }
 
 let ticking = false;
@@ -213,14 +233,22 @@ async function tick() {
         console.error(`[error ntfy] ${task.title}: ${err.message}`);
       }
     }
-    for (const r of store.routines) {
-      if (!reminders.shouldNotifyRoutine(r, now)) continue;
-      const last = r.lastNotifiedAt ? new Date(r.lastNotifiedAt) : null;
-      const countToday = last && reminders.ymd(last) === reminders.ymd(now) ? r.notifyCountToday || 0 : 0;
+    if (reminders.shouldNotifyRoutines(store.routines, store.meta.routinesLastNotifiedAt, now)) {
       try {
-        await notifyRoutine({ ...r, notifyCountToday: countToday }, now);
-        store.updateRoutine(r.id, { lastNotifiedAt: now.toISOString(), notifyCountToday: countToday + 1 });
-        console.log(`[rutina] ${r.title}`);
+        const n = await notifyRoutines(now);
+        store.setMeta({ routinesLastNotifiedAt: now.toISOString() });
+        console.log(`[rutinas] ${n} pendientes`);
+      } catch (err) {
+        console.error(`[error ntfy] rutinas: ${err.message}`);
+      }
+    }
+    for (const r of store.routines) {
+      if (!reminders.shouldNotifyMissed(r, now)) continue;
+      try {
+        const msg = reminders.buildMissedMessage(r, now);
+        await ntfy.publish({ sequenceId: `miss-${r.id}`, ...msg, click: PUBLIC_URL });
+        store.updateRoutine(r.id, { missedNotifiedDate: reminders.ymd(now) });
+        console.log(`[saltada] ${r.title}`);
       } catch (err) {
         console.error(`[error ntfy] ${r.title}: ${err.message}`);
       }
@@ -316,9 +344,17 @@ async function handle(req, res) {
     const [, id, action] = hook;
     if (!safeEqual(url.searchParams.get('t') || '', actionToken(id, action))) return send(res, 403, { error: 'Token inválido' });
     if (!store.get(id)) return send(res, 404, { error: 'No existe' });
-    if (action === 'done') store.update(id, { completedAt: new Date().toISOString() });
+    if (action === 'done') completeTask(id);
     else store.update(id, { snoozedUntil: new Date(Date.now() + reminders.HOUR).toISOString() });
     return send(res, 200, { ok: true });
+  }
+
+  // Calendario para ICSx⁵ (respaldo sin internet). Protegido por el token del enlace.
+  const cal = p.match(/^\/cal\/([a-f0-9]+)\.ics$/);
+  if (cal && m === 'GET') {
+    if (!safeEqual(cal[1], calToken())) return send(res, 404, { error: 'No encontrado' });
+    res.writeHead(200, { 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'no-store' });
+    return res.end(buildCalendar(store.all(), store.routines));
   }
 
   const rhook = p.match(/^\/api\/rhook\/([\w-]+)\/done$/);
@@ -334,7 +370,7 @@ async function handle(req, res) {
     if (!isLogged(req)) return send(res, 401, { error: 'Inicia sesión' });
 
     if (p === '/api/me' && m === 'GET') {
-      return send(res, 200, { ok: true, version: VERSION, topic: ntfy.TOPIC, server: ntfy.SERVER });
+      return send(res, 200, { ok: true, version: VERSION, topic: ntfy.TOPIC, server: ntfy.SERVER, calUrl: calUrl() });
     }
     if (p === '/api/tasks' && m === 'GET') return send(res, 200, store.all());
     if (p === '/api/tasks' && m === 'POST') {
@@ -372,7 +408,7 @@ async function handle(req, res) {
     if (one) {
       const [, id, action] = one;
       if (!store.get(id)) return send(res, 404, { error: 'No existe' });
-      if (action === 'complete' && m === 'POST') return send(res, 200, store.update(id, { completedAt: new Date().toISOString() }));
+      if (action === 'complete' && m === 'POST') return send(res, 200, completeTask(id));
       if (action === 'reopen' && m === 'POST') {
         return send(res, 200, store.update(id, { completedAt: null, snoozedUntil: null, lastNotifiedAt: new Date().toISOString() }));
       }
@@ -386,6 +422,7 @@ async function handle(req, res) {
         return send(res, 200, store.update(id, patch));
       }
       if (!action && m === 'DELETE') {
+        ntfy.clear(taskSeq(id));
         store.remove(id);
         return send(res, 204);
       }

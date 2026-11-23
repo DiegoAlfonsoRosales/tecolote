@@ -129,16 +129,27 @@ function daysLabel(days) {
   if (k === '0,6') return 'Fines de semana';
   return [1, 2, 3, 4, 5, 6, 0].filter((d) => days.includes(d)).map((d) => DAY_LETTERS[d]).join(' ');
 }
-function routineIsDue(r) {
+// v2.0: la hora de la rutina es su HORA LÍMITE. Antes de ella está pendiente; después, saltada.
+function minutesToDeadline(r) {
   const [h, m] = r.time.split(':').map(Number);
   const now = new Date();
-  return now.getHours() * 60 + now.getMinutes() >= h * 60 + m;
+  return h * 60 + m - (now.getHours() * 60 + now.getMinutes());
+}
+function leftLabel(mins) {
+  if (mins >= 60) {
+    const h = Math.floor(mins / 60);
+    return `quedan ${h} h${mins % 60 ? ` ${mins % 60} min` : ''}`;
+  }
+  return `quedan ${mins} min`;
 }
 
 function routineItem(r, full = false) {
   const li = document.createElement('li');
-  const due = !r.doneToday && r.scheduledToday && routineIsDue(r);
-  li.className = `task routine${r.doneToday && (r.scheduledToday || !full) ? ' done-today' : ''}${due ? ' due' : ''}${r.paused ? ' paused' : ''}`;
+  const left = minutesToDeadline(r);
+  const pending = !r.doneToday && r.scheduledToday && !r.paused;
+  const missed = pending && left <= 0;
+  const urgent = pending && left > 0 && left <= 30;
+  li.className = `task routine${r.doneToday && (r.scheduledToday || !full) ? ' done-today' : ''}${missed ? ' missed' : ''}${urgent ? ' due' : ''}${r.paused ? ' paused' : ''}`;
 
   const check = document.createElement('button');
   check.className = 'check';
@@ -157,7 +168,10 @@ function routineItem(r, full = false) {
   meta.className = 'task-meta';
   const when = document.createElement('span');
   when.className = 'when';
-  when.textContent = full ? `${daysLabel(r.days)} · ${r.time}` : due ? `Ya es hora (${r.time})` : r.doneToday ? 'Hecha hoy' : `A las ${r.time}`;
+  if (full) when.textContent = `${daysLabel(r.days)} · antes de las ${r.time}`;
+  else if (r.doneToday) when.textContent = 'Hecha hoy';
+  else if (missed) when.textContent = `Te la saltaste (límite ${r.time})`;
+  else when.textContent = `Antes de las ${r.time} · ${leftLabel(left)}`;
   meta.append(when);
   if (r.streak > 0) {
     meta.append(withIcon('flame', `${r.streak} ${r.streak === 1 ? 'día' : 'días'}`, 'streak'));
@@ -463,6 +477,16 @@ $('#test-btn').onclick = async () => {
     toast(e.message);
   }
 };
+$('#copy-cal').onclick = async () => {
+  const input = $('#cal-url');
+  try {
+    await navigator.clipboard.writeText(input.value);
+  } catch {
+    input.select();
+    document.execCommand('copy');
+  }
+  toast('Enlace copiado. Pégalo en ICSx⁵');
+};
 $('#logout-btn').onclick = async () => {
   await api('/api/logout', { method: 'POST' });
   settings.close();
@@ -527,6 +551,7 @@ async function init() {
   try {
     const me = await api('/api/me');
     $('#version').textContent = `v${me.version}`;
+    $('#cal-url').value = me.calUrl || '';
     $('#topic').textContent = `${me.server.replace(/^https?:\/\//, '')}/${me.topic || '(sin configurar)'}`;
     await showApp();
   } catch {

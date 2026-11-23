@@ -2,6 +2,13 @@
 
 Versiones: **X.0** cambios de estructura · **x.Y** cambios sencillos · **x.x.Z** cambios mínimos.
 
+## v2.0.0
+- **Rutinas con hora límite**: se recuerdan desde las 6:00 hasta su hora límite. Si pasa sin marcarla, llega "⚠️ Te saltaste…" y la racha se rompe.
+- **Un solo aviso para todas las rutinas pendientes**, con un botón ✅ por rutina (hasta 3), cada 15 min.
+- **Pendientes más insistentes**: el mismo día cada 15 min hasta la hora límite (prioridad máxima); vencidos cada 30 min.
+- **Los avisos ya no se apilan**: cada aviso nuevo reemplaza al anterior (ntfy 2.16+), y al completar se quita del cel.
+- **Respaldo sin internet**: calendario `.ics` secreto para la app ICSx⁵, con alarmas que suenan sin datos.
+
 ## v1.2.2
 - Íconos SVG propios en lugar de emojis en la interfaz: ahora se ven en compus sin fuente de emojis (ej. Fedora).
 

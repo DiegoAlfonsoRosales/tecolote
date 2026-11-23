@@ -8,17 +8,22 @@ Pendientes con recordatorios **insistentes** por [ntfy](https://ntfy.sh): te avi
 
 | Cuándo | Frecuencia | Prioridad ntfy |
 |---|---|---|
-| Más de 3 días antes | 1 vez al día (desde las 9 am) | baja |
-| 3 días antes | cada 4 h | normal |
-| 2 días antes | cada 3 h | normal |
-| 1 día antes | cada 2 h | normal |
-| El mismo día | cada hora | alta |
-| Ya vencido | cada hora | urgente |
+| Más de 3 días antes | 1 vez al día (desde las 9 am) | normal |
+| 3, 2 y 1 día antes | cada 4, 3 y 2 h | alta |
+| El mismo día | cada 15 min hasta la hora límite | máxima |
+| Ya vencido | cada 30 min | máxima |
+| Rutinas | un solo aviso desde las 6:00, cada 15 min hasta su hora límite | alta (máxima a 30 min del límite) |
+| Rutina no hecha a tiempo | 1 aviso de "te la saltaste" | alta |
 
-- **Rutinas** (ej. tender la cama a las 8:30): avisan a su hora y cada 30 min hasta que las marcas; al otro día empiezan de nuevo. Llevan racha 🔥.
-- Silencio de **12 am a 6 am**.
-- Sin hora, el pendiente vence al terminar el día.
-- Cada notificación trae dos botones: **✅ Completada** y **😴 En 1 hora**.
+- Silencio de **12 am a 6 am**. Sin hora, el pendiente vence al terminar el día.
+- Los avisos de un mismo pendiente **se reemplazan** en vez de apilarse (requiere ntfy 2.16+ en el cel) y se quitan al completarlo.
+- Botones en la notificación: **✅ Completada** / **😴 En 1 hora** en pendientes, y **✅ <rutina>** en el aviso de rutinas.
+- Para que suene hasta que la toques: en ntfy, activa "Mantener alertas para la máxima prioridad".
+- Ajustable en `.env`: `REMIND_EVERY` (15), `OVERDUE_EVERY` (30), `QUIET_START` (0), `QUIET_END` (6).
+
+## Respaldo sin internet
+
+En ⚙️ Ajustes está el enlace secreto del calendario (`/cal/….ics`). Pégalo en la app **ICSx⁵** y tus pendientes y rutinas pasan al calendario del cel con alarmas que suenan aunque no haya datos.
 
 ## Instalar en la Raspberry Pi
 

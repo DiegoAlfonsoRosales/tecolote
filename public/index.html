@@ -118,9 +118,9 @@
           <button type="button" data-day="6">S</button>
           <button type="button" data-day="0">D</button>
         </div>
-        <label class="label" for="f-rtime">¿A qué hora?</label>
+        <label class="label" for="f-rtime">¿Hora límite?</label>
         <input id="f-rtime" type="time" value="08:30">
-        <p class="hint">Te aviso a esa hora y cada 30 min hasta que la marques. Al otro día empieza de nuevo.</p>
+        <p class="hint">Te la recuerdo desde las 6:00 cada 15 min hasta esa hora. Si no la marcas, te aviso que te la saltaste.</p>
         <label class="switch" id="pause-row" hidden><input type="checkbox" id="f-paused"> Pausar esta rutina</label>
       </div>
       <textarea id="f-notes" rows="2" placeholder="Notas (opcional)" maxlength="2000"></textarea>
@@ -145,13 +145,21 @@
       <p><strong>Cada cuánto te aviso</strong></p>
       <ul>
         <li>Más de 3 días antes: 1 vez al día</li>
-        <li>3 días antes: cada 4 h</li>
-        <li>2 días antes: cada 3 h</li>
-        <li>1 día antes: cada 2 h</li>
-        <li>El mismo día y ya vencido: cada hora</li>
-        <li>Rutinas: a su hora y cada 30 min hasta marcarlas</li>
+        <li>3, 2 y 1 día antes: cada 4, 3 y 2 h</li>
+        <li>El mismo día: cada 15 min hasta la hora límite</li>
+        <li>Ya vencido: cada 30 min hasta completarlo</li>
+        <li>Rutinas: un solo aviso desde las 6:00, cada 15 min hasta su hora límite</li>
+        <li>Rutina sin hacer a tiempo: aviso de "te la saltaste"</li>
         <li>Silencio de 12 am a 6 am</li>
       </ul>
+    </div>
+    <div class="rules cal">
+      <p><strong>Respaldo sin internet</strong></p>
+      <p class="muted">Pega este enlace en la app ICSx⁵. Tus pendientes y rutinas pasan al calendario del cel con alarmas que suenan aunque no haya datos.</p>
+      <div class="row">
+        <input id="cal-url" readonly aria-label="Enlace del calendario">
+        <button id="copy-cal" class="btn">Copiar</button>
+      </div>
     </div>
     <div class="sheet-actions">
       <button id="logout-btn" class="btn ghost">Cerrar sesión</button>
