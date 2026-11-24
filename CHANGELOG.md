@@ -2,6 +2,11 @@
 
 Versiones: **X.0** cambios de estructura · **x.Y** cambios sencillos · **x.x.Z** cambios mínimos.
 
+## v2.1.0
+- **Rutinas con varios horarios**: cada horario tiene "recuérdame desde" y "hasta (límite)". Ej. perro 07:00→08:30 y 20:00→22:00. Entre horarios no hay avisos.
+- Cada horario se marca por separado (en la app y con su botón ✅ en la notificación) y avisa por separado si te lo saltas. La racha cuenta los días con todos los horarios hechos.
+- Las rutinas existentes se convierten solas a un horario (desde las 7:00 hasta su hora límite).
+
 ## v2.0.2
 - Tocar la notificación ya no abre Tecolote: abre ntfy, que es lo que calla la alerta insistente de prioridad máxima.
 - Nuevo botón "🦉 Abrir Tecolote" en cada aviso. El aviso de rutinas muestra hasta 2 botones ✅ (ntfy permite 3 en total).

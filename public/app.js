@@ -130,11 +130,10 @@ function daysLabel(days) {
   return [1, 2, 3, 4, 5, 6, 0].filter((d) => days.includes(d)).map((d) => DAY_LETTERS[d]).join(' ');
 }
 // v2.0: la hora de la rutina es su HORA LÍMITE. Antes de ella está pendiente; después, saltada.
-function minutesToDeadline(r) {
-  const [h, m] = r.time.split(':').map(Number);
-  const now = new Date();
-  return h * 60 + m - (now.getHours() * 60 + now.getMinutes());
-}
+// v2.1: una rutina tiene uno o varios horarios (desde → hasta). Cada uno se marca por separado.
+const nowMins = () => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); };
+const toMins = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+const fromMins = (x) => `${pad(Math.floor(((x % 1440) + 1440) % 1440 / 60))}:${pad(((x % 60) + 60) % 60)}`;
 function leftLabel(mins) {
   if (mins >= 60) {
     const h = Math.floor(mins / 60);
@@ -142,22 +141,56 @@ function leftLabel(mins) {
   }
   return `quedan ${mins} min`;
 }
+/** Estado del horario según la hora actual del cel (el servidor manda si ya está hecho). */
+function slotState(slot) {
+  if (slot.state === 'done') return 'done';
+  const n = nowMins();
+  if (n >= toMins(slot.until)) return 'missed';
+  if (n >= toMins(slot.from)) return 'open';
+  return 'upcoming';
+}
+const slotsLabel = (r) => r.slots.map((sl) => `${sl.from}–${sl.until}`).join(', ');
+const firstUntil = (r) => r.slots[0].until;
 
-function routineItem(r, full = false) {
+/** Renglón de "Rutinas de hoy": uno por horario. */
+function routineSlotItem({ r, slot }) {
+  const st = slotState(slot);
   const li = document.createElement('li');
-  const left = minutesToDeadline(r);
-  const pending = !r.doneToday && r.scheduledToday && !r.paused;
-  const missed = pending && left <= 0;
-  const urgent = pending && left > 0 && left <= 30;
-  li.className = `task routine${r.doneToday && (r.scheduledToday || !full) ? ' done-today' : ''}${missed ? ' missed' : ''}${urgent ? ' due' : ''}${r.paused ? ' paused' : ''}`;
+  li.className = `task routine${st === 'done' ? ' done-today' : ''}${st === 'missed' ? ' missed' : ''}${st === 'open' && toMins(slot.until) - nowMins() <= 30 ? ' due' : ''}${st === 'upcoming' ? ' upcoming' : ''}`;
 
   const check = document.createElement('button');
   check.className = 'check';
   check.textContent = '✓';
-  check.setAttribute('aria-label', r.doneToday ? 'Desmarcar' : 'Marcar como hecha hoy');
-  check.hidden = full && !r.scheduledToday;
-  check.onclick = () => toggleRoutine(r);
+  check.setAttribute('aria-label', st === 'done' ? 'Desmarcar' : 'Marcar como hecha');
+  check.onclick = () => toggleSlot(r, slot);
 
+  const body = document.createElement('div');
+  body.className = 'task-body';
+  body.onclick = () => openEditor(r, 'routine');
+  const title = document.createElement('div');
+  title.className = 'task-title';
+  title.textContent = r.slots.length > 1 ? `${r.title} (${slot.index} de ${slot.total})` : r.title;
+  const meta = document.createElement('div');
+  meta.className = 'task-meta';
+  const when = document.createElement('span');
+  when.className = 'when';
+  if (st === 'done') when.textContent = 'Hecha';
+  else if (st === 'missed') when.textContent = `Te la saltaste (límite ${slot.until})`;
+  else if (st === 'open') when.textContent = `Antes de las ${slot.until} · ${leftLabel(toMins(slot.until) - nowMins())}`;
+  else when.textContent = `De ${slot.from} a ${slot.until}`;
+  meta.append(when);
+  if (r.streak > 0 && slot.index === slot.total) {
+    meta.append(withIcon('flame', `${r.streak} ${r.streak === 1 ? 'día' : 'días'}`, 'streak'));
+  }
+  body.append(title, meta);
+  li.append(check, body);
+  return li;
+}
+
+/** Renglón de la pestaña Rutinas: uno por rutina. */
+function routineItem(r) {
+  const li = document.createElement('li');
+  li.className = `task routine${r.doneToday && r.scheduledToday ? ' done-today' : ''}${r.paused ? ' paused' : ''}`;
   const body = document.createElement('div');
   body.className = 'task-body';
   body.onclick = () => openEditor(r, 'routine');
@@ -168,29 +201,22 @@ function routineItem(r, full = false) {
   meta.className = 'task-meta';
   const when = document.createElement('span');
   when.className = 'when';
-  if (full) when.textContent = `${daysLabel(r.days)} · antes de las ${r.time}`;
-  else if (r.doneToday) when.textContent = 'Hecha hoy';
-  else if (missed) when.textContent = `Te la saltaste (límite ${r.time})`;
-  else when.textContent = `Antes de las ${r.time} · ${leftLabel(left)}`;
+  when.textContent = `${daysLabel(r.days)} · ${slotsLabel(r)}`;
   meta.append(when);
-  if (r.streak > 0) {
-    meta.append(withIcon('flame', `${r.streak} ${r.streak === 1 ? 'día' : 'días'}`, 'streak'));
-  }
-  if (r.paused) {
-    meta.append(withIcon('pause', 'Pausada'));
-  }
+  if (r.streak > 0) meta.append(withIcon('flame', `${r.streak} ${r.streak === 1 ? 'día' : 'días'}`, 'streak'));
+  if (r.paused) meta.append(withIcon('pause', 'Pausada'));
   body.append(title, meta);
-  li.append(check, body);
+  li.append(body);
   return li;
 }
 
-async function toggleRoutine(r) {
-  const wasDone = r.doneToday;
+async function toggleSlot(r, slot) {
+  const wasDone = slot.state === 'done';
   try {
-    const updated = await api(`/api/routines/${r.id}/${wasDone ? 'undo' : 'done'}`, { method: 'POST' });
+    const updated = await api(`/api/routines/${r.id}/${wasDone ? 'undo' : 'done'}`, { method: 'POST', body: { slot: slot.id } });
     Object.assign(r, updated);
     render();
-    if (!wasDone) toast(r.streak > 1 ? `¡${r.streak} días seguidos!` : CHEERS[Math.floor(Math.random() * CHEERS.length)]);
+    if (!wasDone) toast(r.doneToday && r.streak > 1 ? `¡${r.streak} días seguidos!` : CHEERS[Math.floor(Math.random() * CHEERS.length)]);
   } catch (e) {
     toast(e.message);
   }
@@ -238,20 +264,23 @@ function render() {
   const colB = $('#col-b');
   colA.replaceChildren();
   colB.replaceChildren();
-  const byTime = (a, b) => a.time.localeCompare(b.time);
-  const todayRoutines = routines.filter((r) => r.scheduledToday && !r.paused).sort(byTime);
-  const pendingRoutines = todayRoutines.filter((r) => !r.doneToday);
-  if (todayRoutines.length) {
-    const g = group('routines', 'Rutinas de hoy', todayRoutines, (r) => routineItem(r));
-    g.querySelector('.badge span').textContent = `${todayRoutines.length - pendingRoutines.length}/${todayRoutines.length}`;
+  const byTime = (a, b) => firstUntil(a).localeCompare(firstUntil(b));
+  const todaySlots = routines
+    .filter((r) => r.scheduledToday && !r.paused)
+    .flatMap((r) => (r.today || []).map((slot) => ({ r, slot })))
+    .sort((a, b) => a.slot.until.localeCompare(b.slot.until));
+  const pendingRoutines = todaySlots.filter((x) => slotState(x.slot) === 'open');
+  if (todaySlots.length) {
+    const g = group('routines', 'Rutinas de hoy', todaySlots, routineSlotItem);
+    g.querySelector('.badge span').textContent = `${todaySlots.filter((x) => x.slot.state === 'done').length}/${todaySlots.length}`;
     colA.append(g);
   }
   if (overdue.length) colA.append(group('overdue', 'Vencidos', overdue));
   if (today.length) colA.append(group('today', 'Hoy', today));
   if (upcoming.length) colB.append(group('upcoming', 'Próximos', upcoming));
 
-  $('#empty').hidden = open.length > 0 || todayRoutines.length > 0;
-  $('#routine-list').replaceChildren(...[...routines].sort(byTime).map((r) => routineItem(r, true)));
+  $('#empty').hidden = open.length > 0 || todaySlots.length > 0;
+  $('#routine-list').replaceChildren(...[...routines].sort(byTime).map((r) => routineItem(r)));
   $('#routines-empty').hidden = routines.length > 0;
   $('#done-section').hidden = done.length === 0;
   $('#done-count').textContent = done.length;
@@ -307,6 +336,53 @@ const wide = window.matchMedia('(min-width: 1000px)');
 const isWide = () => wide.matches;
 let editType = 'task';
 let selectedDays = new Set([1, 2, 3, 4, 5]);
+// Horarios de la rutina en edición: [{ id?, from, until, auto }]. auto = "desde" calculado solo (2 h antes).
+let slots = [];
+let wakeHour = 7;
+
+function renderSlots() {
+  const box = $('#slots');
+  box.replaceChildren(...slots.map((sl, i) => {
+    const row = document.createElement('div');
+    row.className = 'slot-row';
+    const from = document.createElement('input');
+    from.type = 'time';
+    from.value = sl.from;
+    from.setAttribute('aria-label', `Horario ${i + 1}: desde`);
+    from.oninput = () => { sl.from = from.value; sl.auto = false; };
+    const until = document.createElement('input');
+    until.type = 'time';
+    until.value = sl.until;
+    until.setAttribute('aria-label', `Horario ${i + 1}: hasta (hora límite)`);
+    until.oninput = () => {
+      sl.until = until.value;
+      if (sl.auto && until.value) {
+        sl.from = i === 0 && toMins(until.value) > wakeHour * 60 ? fromMins(wakeHour * 60) : fromMins(Math.max(0, toMins(until.value) - 120));
+        from.value = sl.from;
+      }
+    };
+    const arrow = document.createElement('span');
+    arrow.className = 'slot-lbl';
+    arrow.textContent = '→';
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'slot-del';
+    del.textContent = '×';
+    del.setAttribute('aria-label', 'Quitar horario');
+    del.hidden = slots.length === 1;
+    del.onclick = () => { slots.splice(i, 1); renderSlots(); };
+    row.append(from, arrow, until, del);
+    return row;
+  }));
+  $('#add-slot').hidden = slots.length >= 6;
+}
+
+$('#add-slot').onclick = () => {
+  const last = slots[slots.length - 1];
+  const until = last ? fromMins(Math.min(23 * 60 + 59, toMins(last.until) + 4 * 60)) : '08:30';
+  slots.push({ from: fromMins(Math.max(0, toMins(until) - 120)), until, auto: true });
+  renderSlots();
+};
 
 function placeForm() {
   if (isWide()) {
@@ -347,7 +423,6 @@ function setType(type) {
   $('#task-fields').hidden = isRoutine;
   $('#routine-fields').hidden = !isRoutine;
   $('#f-date').required = !isRoutine;
-  $('#f-rtime').required = isRoutine;
   $('#f-title').placeholder = isRoutine ? '¿Qué haces cada día? (ej. tender la cama)' : '¿Qué tienes que hacer?';
   const noun = isRoutine ? 'rutina' : 'pendiente';
   $('#sheet-title').textContent = editingId ? `Editar ${noun}` : `${isRoutine ? 'Nueva' : 'Nuevo'} ${noun}`;
@@ -359,7 +434,8 @@ function fillEditor(item, type) {
   $('#f-title').value = item ? item.title : '';
   $('#f-notes').value = item ? item.notes : '';
   if (type === 'routine') {
-    $('#f-rtime').value = item ? item.time : '08:30';
+    slots = item ? item.slots.map((sl) => ({ ...sl, auto: false })) : [{ from: fromMins(wakeHour * 60), until: '08:30', auto: true }];
+    renderSlots();
     selectedDays = new Set(item ? item.days : [1, 2, 3, 4, 5]);
     $('#f-paused').checked = !!(item && item.paused);
     $('#pause-row').hidden = !item;
@@ -416,7 +492,7 @@ $('#task-form').onsubmit = async (e) => {
   try {
     if (editType === 'routine') {
       if (!selectedDays.size) throw new Error('Elige al menos un día');
-      const body = { title: $('#f-title').value, time: $('#f-rtime').value, days: [...selectedDays], notes: $('#f-notes').value };
+      const body = { title: $('#f-title').value, slots: slots.map(({ id, from, until }) => ({ id, from, until })), days: [...selectedDays], notes: $('#f-notes').value };
       if (editingId) {
         body.paused = $('#f-paused').checked;
         const updated = await api(`/api/routines/${editingId}`, { method: 'PATCH', body });
@@ -552,7 +628,7 @@ async function init() {
     const me = await api('/api/me');
     $('#version').textContent = `v${me.version}`;
     $('#cal-url').value = me.calUrl || '';
-    document.querySelectorAll('.wake-hour').forEach((el) => { el.textContent = `${me.wakeHour}:00`; });
+    wakeHour = me.wakeHour || 7;
     $('#topic').textContent = `${me.server.replace(/^https?:\/\//, '')}/${me.topic || '(sin configurar)'}`;
     await showApp();
   } catch {

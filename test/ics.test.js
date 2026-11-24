@@ -9,7 +9,7 @@ test('calendario con pendientes y rutinas', () => {
       { id: '1', title: 'Pagar luz, agua', notes: '', dueDate: '2026-11-25', dueTime: '18:00', completedAt: null },
       { id: '2', title: 'Hecho', dueDate: '2026-11-25', dueTime: null, completedAt: '2026-11-20T00:00:00Z' },
     ],
-    [{ id: 'r', title: 'Tender la cama', notes: '', time: '08:30', days: [1, 2, 3, 4, 5], createdAt: '2026-11-01T12:00:00Z', doneDates: ['2026-11-23'], paused: false }],
+    [{ id: 'r', title: 'Tender la cama', notes: '', slots: [{ id: 's1', from: '07:00', until: '08:30' }], days: [1, 2, 3, 4, 5], createdAt: '2026-11-01T12:00:00Z', doneKeys: ['2026-11-23:s1'], paused: false }],
     new Date('2026-11-23T12:00:00Z'),
   );
   assert.match(ics, /BEGIN:VCALENDAR/);

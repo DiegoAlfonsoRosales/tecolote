@@ -111,9 +111,18 @@ function cleanRoutine(body, partial = false) {
     if (!title) throw new Error('La rutina necesita un título');
     out.title = title;
   }
-  if (!partial || body.time !== undefined) {
-    if (!HHMM_RE.test(body.time || '')) throw new Error('Hora inválida');
-    out.time = body.time;
+  if (!partial || body.slots !== undefined) {
+    const raw = (Array.isArray(body.slots) ? body.slots.slice(0, 6) : []).sort((a, b) => String(a.until).localeCompare(String(b.until)));
+    if (!raw.length) throw new Error('La rutina necesita al menos un horario');
+    const used = new Set();
+    out.slots = raw.map((sl) => {
+      if (!HHMM_RE.test(sl.from || '') || !HHMM_RE.test(sl.until || '')) throw new Error('Hora inválida');
+      if (sl.from >= sl.until) throw new Error(`Hora inválida: "desde" (${sl.from}) debe ser antes de "hasta" (${sl.until})`);
+      let id = /^s\d{1,4}$/.test(sl.id || '') && !used.has(sl.id) ? sl.id : null;
+      for (let n = 1; !id; n++) if (!used.has(`s${n}`) && !raw.some((x) => x.id === `s${n}`)) id = `s${n}`;
+      used.add(id);
+      return { id, from: sl.from, until: sl.until };
+    }).sort((a, b) => a.until.localeCompare(b.until));
   }
   if (!partial || body.days !== undefined) {
     const days = [...new Set((Array.isArray(body.days) ? body.days : []).map(Number))].filter((d) => d >= 0 && d <= 6).sort();
@@ -132,18 +141,29 @@ function routineView(r, now = new Date()) {
     streak: reminders.streak(r, now),
     doneToday: reminders.doneOn(r, now),
     scheduledToday: reminders.isScheduled(r, now),
+    today: reminders.slotsToday(r, now),
   };
 }
 
-function markRoutine(id, done, now = new Date()) {
+/** Sin horario indicado: el abierto ahora, si no el último que ya empezó sin hacer, si no el siguiente. */
+function pickSlot(r, now) {
+  const today = reminders.slotsToday(r, now);
+  const open = today.find((s) => s.state === 'open');
+  const missed = today.filter((s) => s.state === 'missed').pop();
+  const next = today.find((s) => s.state === 'upcoming');
+  return (open || missed || next || today[0]).id;
+}
+
+function markRoutine(id, done, slotId, now = new Date()) {
   const r = store.getRoutine(id);
-  const today = reminders.ymd(now);
-  const doneDates = r.doneDates.filter((d) => d !== today);
-  if (done) doneDates.push(today);
-  const updated = store.updateRoutine(id, { doneDates });
-  // Si ya no queda ninguna rutina pendiente hoy, quita el aviso agrupado del cel.
-  if (done && !reminders.pendingRoutines(store.routines, now).length) ntfy.clear(routinesSeq(now));
-  if (done) ntfy.clear(`miss-${id}`);
+  const slot = r.slots.find((s) => s.id === slotId) ? slotId : pickSlot(r, now);
+  const key = `${reminders.ymd(now)}:${slot}`;
+  const doneKeys = r.doneKeys.filter((k) => k !== key);
+  if (done) doneKeys.push(key);
+  const updated = store.updateRoutine(id, { doneKeys });
+  // Si ya no queda ningún horario abierto, quita el aviso agrupado del cel.
+  if (done && !reminders.pendingItems(store.routines, now).length) ntfy.clear(routinesSeq(now));
+  if (done) ntfy.clear(`miss-${id}-${slot}`);
   return updated;
 }
 
@@ -208,15 +228,15 @@ async function notifyRoutines(now) {
     body: msg.body,
     tags: msg.tags,
     priority: msg.priority,
-    actions: [...msg.pending.slice(0, 2).map((r) => ({
+    actions: [...msg.items.slice(0, 2).map((it) => ({
       action: 'http',
-      label: `✅ ${short(r.title)}`,
-      url: `${PUBLIC_URL}/api/rhook/${r.id}/done?t=${actionToken(r.id, 'rdone')}`,
+      label: `✅ ${short(reminders.itemName(it))}`,
+      url: `${PUBLIC_URL}/api/rhook/${it.routine.id}/done?s=${it.slot.id}&t=${actionToken(it.routine.id, 'rdone')}`,
       method: 'POST',
       clear: true,
     })), openAction],
   });
-  return msg.pending.length;
+  return msg.items.length;
 }
 
 let ticking = false;
@@ -244,13 +264,13 @@ async function tick() {
         console.error(`[error ntfy] rutinas: ${err.message}`);
       }
     }
-    for (const r of store.routines) {
-      if (!reminders.shouldNotifyMissed(r, now)) continue;
+    for (const it of reminders.missedItems(store.routines, now)) {
+      const r = it.routine;
       try {
-        const msg = reminders.buildMissedMessage(r, now);
-        await ntfy.publish({ sequenceId: `miss-${r.id}`, ...msg, actions: [openAction] });
-        store.updateRoutine(r.id, { missedNotifiedDate: reminders.ymd(now) });
-        console.log(`[saltada] ${r.title}`);
+        const msg = reminders.buildMissedMessage(it, now);
+        await ntfy.publish({ sequenceId: `miss-${r.id}-${it.slot.id}`, ...msg, actions: [openAction] });
+        store.updateRoutine(r.id, { missedKeys: [...r.missedKeys, `${reminders.ymd(now)}:${it.slot.id}`] });
+        console.log(`[saltada] ${reminders.itemName(it)}`);
       } catch (err) {
         console.error(`[error ntfy] ${r.title}: ${err.message}`);
       }
@@ -364,7 +384,7 @@ async function handle(req, res) {
     const id = rhook[1];
     if (!safeEqual(url.searchParams.get('t') || '', actionToken(id, 'rdone'))) return send(res, 403, { error: 'Token inválido' });
     if (!store.getRoutine(id)) return send(res, 404, { error: 'No existe' });
-    markRoutine(id, true);
+    markRoutine(id, true, url.searchParams.get('s'));
     return send(res, 200, { ok: true });
   }
 
@@ -397,7 +417,10 @@ async function handle(req, res) {
     if (rt) {
       const [, id, action] = rt;
       if (!store.getRoutine(id)) return send(res, 404, { error: 'No existe' });
-      if (action && m === 'POST') return send(res, 200, routineView(markRoutine(id, action === 'done')));
+      if (action && m === 'POST') {
+        const body = await readBody(req);
+        return send(res, 200, routineView(markRoutine(id, action === 'done', body.slot)));
+      }
       if (!action && m === 'PATCH') return send(res, 200, routineView(store.updateRoutine(id, cleanRoutine(await readBody(req), true))));
       if (!action && m === 'DELETE') {
         store.removeRoutine(id);
