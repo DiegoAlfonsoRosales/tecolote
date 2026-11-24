@@ -153,12 +153,20 @@ function cleanMed(body, partial = false) {
     if (!name) throw new Error('El medicamento necesita un nombre');
     out.name = name;
   }
-  if (!partial || body.everyHours !== undefined) {
+  // v2.3: "interval" = cada N horas; "fixed" = a horas fijas (ej. desayuno y cena).
+  const mode = body.mode === 'fixed' ? 'fixed' : 'interval';
+  if (!partial || body.mode !== undefined) out.mode = mode;
+  if (mode === 'fixed' && (!partial || body.times !== undefined)) {
+    const times = [...new Set((Array.isArray(body.times) ? body.times : []).filter((t) => HHMM_RE.test(t)))].sort().slice(0, 12);
+    if (!times.length) throw new Error('Agrega al menos una hora');
+    out.times = times;
+  }
+  if (mode === 'interval' && (!partial || body.everyHours !== undefined)) {
     const h = Number(body.everyHours);
     if (!Number.isInteger(h) || h < 1 || h > 168) throw new Error('Cada cuántas horas: número inválido');
     out.everyHours = h;
   }
-  if (!partial || body.firstTime !== undefined) {
+  if (mode === 'interval' && (!partial || body.firstTime !== undefined)) {
     if (!HHMM_RE.test(body.firstTime || '')) throw new Error('Hora inválida');
     out.firstTime = body.firstTime;
   }
@@ -167,9 +175,12 @@ function cleanMed(body, partial = false) {
     out.startDate = body.startDate;
   }
   if (!partial || body.days !== undefined) {
-    const d = Number(body.days);
-    if (!Number.isInteger(d) || d < 1 || d > 365) throw new Error('Días de tratamiento: número inválido');
-    out.days = d;
+    if (body.days === null || body.days === '' || body.days === undefined) out.days = null; // sin fecha de fin
+    else {
+      const d = Number(body.days);
+      if (!Number.isInteger(d) || d < 1 || d > 365) throw new Error('Días de tratamiento: número inválido');
+      out.days = d;
+    }
   }
   if (body.notes !== undefined) out.notes = String(body.notes || '').slice(0, 500);
   if (body.paused !== undefined) out.paused = !!body.paused;
@@ -179,7 +190,7 @@ function cleanMed(body, partial = false) {
 function medView(m, now = new Date()) {
   return {
     ...m,
-    times: meds.timesLabel(m),
+    timesLabel: meds.timesLabel(m),
     today: meds.dosesToday(m, now),
     next: meds.nextDose(m, now),
     finished: meds.isFinished(m, now),
@@ -190,7 +201,7 @@ const medSeq = (id) => `med-${id}`;
 
 function markDose(id, key, taken) {
   const m = store.getMed(id);
-  const valid = meds.doses(m).map(meds.doseKey);
+  const valid = meds.doses(m, new Date()).map(meds.doseKey);
   // Sin toma indicada: la que está sonando ahora o la más próxima.
   const now = new Date();
   const target = valid.includes(key) ? key : (meds.nextDose(m, now) || {}).key;
@@ -568,7 +579,7 @@ async function handle(req, res) {
 
 const server = http.createServer((req, res) => {
   handle(req, res).catch((err) => {
-    const status = /inválid|necesita|Demasiado|Elige/.test(err.message) ? 400 : 500;
+    const status = /inválid|necesita|Demasiado|Elige|Agrega/.test(err.message) ? 400 : 500;
     if (status === 500) console.error(err);
     send(res, status, { error: err.message });
   });

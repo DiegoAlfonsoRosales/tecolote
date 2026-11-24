@@ -2,6 +2,11 @@
 
 Versiones: **X.0** cambios de estructura · **x.Y** cambios sencillos · **x.x.Z** cambios mínimos.
 
+## v2.3.0
+- **Medicinas a horas fijas**: ej. metformina en desayuno y cena (08:00 y 20:00). Agrega las horas que quieras.
+- Opción **"Sin fecha de fin"** para tratamientos permanentes.
+- El margen de 1 h para "No registraste tu toma" se mantiene.
+
 ## v2.2.0
 - **Medicinas** (pestaña nueva): nombre, cada cuántas horas, primera toma y por cuántos días. Tecolote calcula las tomas, muestra "Día X de N" y termina solo.
 - Avisos estrictos: 10 min antes, a la hora prioridad máxima cada 5 min hasta marcar "💊 Tomada", y "No registraste tu toma" si pasa 1 h. Suenan aunque sea de noche.

@@ -314,3 +314,4 @@ kbd {
 .task.med.missed .when { color: var(--overdue); }
 .task.med.upcoming { opacity: .75; }
 .tab { font-size: 14px; padding: 9px 6px; }
+.time-row { display: grid; grid-template-columns: 1fr 34px; gap: 8px; align-items: center; }

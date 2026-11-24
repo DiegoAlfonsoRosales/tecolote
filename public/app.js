@@ -247,7 +247,7 @@ function doseItem({ md, dose }) {
   const when = document.createElement('span');
   when.className = 'when';
   when.textContent = DOSE_LABEL[dose.state];
-  meta.append(when, withIcon('pill', `Día ${dose.day} de ${md.days}`));
+  meta.append(when, withIcon('pill', md.days ? `Día ${dose.day} de ${md.days}` : `Día ${dose.day}`));
   body.append(title, meta);
   if (md.notes) {
     const notes = document.createElement('div');
@@ -273,11 +273,11 @@ function medItem(md) {
   meta.className = 'task-meta';
   const when = document.createElement('span');
   when.className = 'when';
-  when.textContent = `Cada ${md.everyHours} h · ${md.times}`;
+  when.textContent = md.mode === 'fixed' ? `Diario · ${md.timesLabel}` : `Cada ${md.everyHours} h · ${md.timesLabel}`;
   meta.append(when);
   if (md.finished) meta.append(withIcon('pill', `Terminado (${md.days} días)`));
   else if (md.next) {
-    meta.append(withIcon('pill', `Día ${md.next.day} de ${md.days}`));
+    meta.append(withIcon('pill', md.days ? `Día ${md.next.day} de ${md.days}` : 'Sin fecha de fin'));
     const nx = new Date(md.next.at);
     const isToday = isoDate(nx) === isoDate(new Date());
     meta.append(withIcon('clock', `Siguiente: ${isToday ? 'hoy' : `${nx.getDate()} ${MON[nx.getMonth()]}`} ${md.next.time}`));
@@ -530,12 +530,67 @@ function setType(type) {
 }
 
 // ---------- Formulario de medicinas ----------
+// v2.3: modo "cada X horas" o "a horas fijas", y duración "unos días" o "sin fecha de fin".
+let medMode = 'interval';
+let medForever = false;
+let medTimes = ['08:00', '20:00'];
+
+function setMedMode(mode) {
+  medMode = mode;
+  document.querySelectorAll('#mode-switch button').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+  $('#fixed-fields').hidden = mode !== 'fixed';
+  $('#interval-fields').hidden = mode !== 'interval';
+  $('#f-mtime').hidden = mode === 'fixed'; // a horas fijas solo importa la fecha de inicio
+  renderMedTimes();
+  medPreview();
+}
+function setForever(forever) {
+  medForever = forever;
+  document.querySelectorAll('#dur-switch button').forEach((b) => b.classList.toggle('active', (b.dataset.dur === 'forever') === forever));
+  $('#f-mdays').hidden = forever;
+  medPreview();
+}
+function renderMedTimes() {
+  $('#med-times').replaceChildren(...medTimes.map((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'time-row';
+    const input = document.createElement('input');
+    input.type = 'time';
+    input.value = t;
+    input.setAttribute('aria-label', `Hora ${i + 1}`);
+    input.oninput = () => { medTimes[i] = input.value; medPreview(); };
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'slot-del';
+    del.textContent = '×';
+    del.setAttribute('aria-label', 'Quitar hora');
+    del.hidden = medTimes.length === 1;
+    del.onclick = () => { medTimes.splice(i, 1); renderMedTimes(); medPreview(); };
+    row.append(input, del);
+    return row;
+  }));
+}
+$('#add-time').onclick = () => {
+  const last = medTimes[medTimes.length - 1] || '08:00';
+  medTimes.push(fromMins(Math.min(23 * 60 + 59, toMins(last) + 4 * 60)));
+  renderMedTimes();
+  medPreview();
+};
+document.querySelectorAll('#mode-switch button').forEach((b) => { b.onclick = () => setMedMode(b.dataset.mode); });
+document.querySelectorAll('#dur-switch button').forEach((b) => { b.onclick = () => setForever(b.dataset.dur === 'forever'); });
 function renderEvery() {
   document.querySelectorAll('#every-chips .chip').forEach((c) => c.classList.toggle('active', c.dataset.h === $('#f-every').value));
 }
 function medPreview() {
+  if (medMode === 'fixed') {
+    const list = [...new Set(medTimes.filter(Boolean))].sort();
+    const label = list.length > 1 ? `${list.slice(0, -1).join(', ')} y ${list[list.length - 1]}` : list[0] || '—';
+    const days = parseInt($('#f-mdays').value, 10);
+    $('#med-preview').textContent = `Todos los días a las ${label}${medForever ? ', sin fecha de fin' : days ? ` durante ${days} ${days === 1 ? 'día' : 'días'}` : ''}.`;
+    return;
+  }
   const every = parseInt($('#f-every').value, 10);
-  const days = parseInt($('#f-mdays').value, 10);
+  const days = medForever ? 3650 : parseInt($('#f-mdays').value, 10);
   const [y, mo, d] = ($('#f-mdate').value || isoDate(new Date())).split('-').map(Number);
   const [h, mi] = ($('#f-mtime').value || '09:30').split(':').map(Number);
   if (!every || !days) { $('#med-preview').textContent = ''; return; }
@@ -551,7 +606,9 @@ function medPreview() {
   }
   const list = [...times].sort();
   const label = list.length > 1 ? `${list.slice(0, -1).join(', ')} y ${list[list.length - 1]}` : list[0];
-  $('#med-preview').textContent = `Tomas a las ${label} · ${count} en total · última el ${last.getDate()} ${MON[last.getMonth()]} a las ${pad(last.getHours())}:${pad(last.getMinutes())}.`;
+  $('#med-preview').textContent = medForever
+    ? `Tomas a las ${label}, sin fecha de fin.`
+    : `Tomas a las ${label} · ${count} en total · última el ${last.getDate()} ${MON[last.getMonth()]} a las ${pad(last.getHours())}:${pad(last.getMinutes())}.`;
 }
 document.querySelectorAll('#every-chips .chip').forEach((c) => {
   c.onclick = () => { $('#f-every').value = c.dataset.h; renderEvery(); medPreview(); };
@@ -566,10 +623,13 @@ function fillEditor(item, type) {
   $('#f-title').value = item ? item.title || item.name : '';
   $('#f-notes').value = item ? item.notes || '' : '';
   if (type === 'med') {
-    $('#f-every').value = item ? item.everyHours : 12;
+    $('#f-every').value = item && item.everyHours ? item.everyHours : 12;
     $('#f-mdate').value = item ? item.startDate : isoDate(new Date());
-    $('#f-mtime').value = item ? item.firstTime : '09:30';
-    $('#f-mdays').value = item ? item.days : 7;
+    $('#f-mtime').value = item && item.firstTime ? item.firstTime : '09:30';
+    $('#f-mdays').value = item && item.days ? item.days : 7;
+    medTimes = item && item.times ? [...item.times] : ['08:00', '20:00'];
+    setMedMode(item && item.mode === 'fixed' ? 'fixed' : 'interval');
+    setForever(!!item && !item.days);
     $('#f-mpaused').checked = !!(item && item.paused);
     $('#mpause-row').hidden = !item;
     renderEvery();
@@ -633,10 +693,12 @@ $('#task-form').onsubmit = async (e) => {
     if (editType === 'med') {
       const body = {
         name: $('#f-title').value,
+        mode: medMode,
         everyHours: parseInt($('#f-every').value, 10),
+        times: medTimes.filter(Boolean),
         startDate: $('#f-mdate').value,
         firstTime: $('#f-mtime').value,
-        days: parseInt($('#f-mdays').value, 10),
+        days: medForever ? null : parseInt($('#f-mdays').value, 10),
         notes: $('#f-notes').value,
       };
       if (editingId) {

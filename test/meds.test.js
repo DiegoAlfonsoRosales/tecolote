@@ -53,3 +53,17 @@ test('mensajes', () => {
   assert.match(m.body, /Toma de las 21:30 \(hace 10 min\) · Día 2 de 7/);
   assert.equal(m.priority, 5);
 });
+
+test('a horas fijas y sin fecha de fin (metformina)', () => {
+  const met = med({ name: 'Metformina', mode: 'fixed', times: ['20:00', '08:00'], everyHours: undefined, firstTime: undefined, days: null, startDate: '2026-11-24' });
+  assert.equal(md.timesLabel(met), '08:00 y 20:00');
+  const today = md.dosesToday(met, at('2027-03-10T12:00'));
+  assert.deepEqual(today.map((x) => [x.time, x.state]), [['08:00', 'missed'], ['20:00', 'upcoming']]);
+  assert.equal(md.isFinished(met, at('2030-01-01T12:00')), false);
+  assert.equal(md.medAlert(met, at('2026-11-24T19:50')).kind, 'missed'); // la de las 8:00 no se marcó
+  const ok = { ...met, createdAt: '2026-11-24T09:00:00' }; // registrada después de las 8:00
+  assert.equal(md.medAlert(ok, at('2026-11-24T19:50')).kind, 'pre');
+  const m = md.buildMedMessage(met, { kind: 'due', t: at('2026-11-26T08:00') }, at('2026-11-26T08:05'));
+  assert.match(m.body, /Día 3(?! de)/);
+  assert.equal(md.nextDose(met, at('2026-11-24T09:00')).time, '20:00');
+});

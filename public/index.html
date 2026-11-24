@@ -141,6 +141,16 @@
         <label class="switch" id="pause-row" hidden><input type="checkbox" id="f-paused"> Pausar esta rutina</label>
       </div>
       <div id="med-fields" class="fields" hidden>
+        <label class="label">¿Cómo la tomas?</label>
+        <div class="segmented" id="mode-switch">
+          <button type="button" data-mode="interval" class="active">Cada X horas</button>
+          <button type="button" data-mode="fixed">A horas fijas</button>
+        </div>
+        <div id="fixed-fields" class="fields" hidden>
+          <div id="med-times" class="slots"></div>
+          <button type="button" id="add-time" class="btn ghost add-slot">+ Agregar hora</button>
+        </div>
+        <div id="interval-fields" class="fields">
         <label class="label" for="f-every">¿Cada cuántas horas?</label>
         <div class="chips" id="every-chips">
           <button type="button" class="chip" data-h="4">4 h</button>
@@ -150,13 +160,18 @@
           <button type="button" class="chip" data-h="24">24 h</button>
         </div>
         <input id="f-every" type="number" min="1" max="168" value="12" aria-label="Cada cuántas horas">
-        <label class="label">Primera toma</label>
+        </div>
+        <label class="label">Empieza</label>
         <div class="row">
           <input id="f-mdate" type="date" aria-label="Fecha de la primera toma">
           <input id="f-mtime" type="time" value="09:30" aria-label="Hora de la primera toma">
         </div>
-        <label class="label" for="f-mdays">¿Por cuántos días?</label>
-        <input id="f-mdays" type="number" min="1" max="365" value="7">
+        <label class="label">¿Por cuánto tiempo?</label>
+        <div class="segmented" id="dur-switch">
+          <button type="button" data-dur="days" class="active">Unos días</button>
+          <button type="button" data-dur="forever">Sin fecha de fin</button>
+        </div>
+        <input id="f-mdays" type="number" min="1" max="365" value="7" aria-label="Número de días">
         <p class="hint" id="med-preview"></p>
         <label class="switch" id="mpause-row" hidden><input type="checkbox" id="f-mpaused"> Pausar este medicamento</label>
       </div>
