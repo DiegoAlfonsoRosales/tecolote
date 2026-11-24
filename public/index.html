@@ -39,6 +39,7 @@
     <nav class="tabs" role="tablist">
       <button class="tab active" data-tab="tasks" role="tab"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg> Pendientes</button>
       <button class="tab" data-tab="routines" role="tab"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg> Rutinas</button>
+      <button class="tab" data-tab="meds" role="tab"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg> Medicinas</button>
     </nav>
 
     <div class="layout">
@@ -53,6 +54,19 @@
             <p><strong>Sin rutinas todavía.</strong></p>
             <p class="muted">Ej. tender la cama a las 8:30 o darle de comer al perro.</p>
           </div>
+        </section>
+
+        <section id="meds-view" hidden>
+          <ul id="med-list" class="tasks"></ul>
+          <div id="meds-empty" class="empty" hidden>
+            <div class="empty-owl"><svg class="ic big" viewBox="0 0 24 24" aria-hidden="true"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg></div>
+            <p><strong>Sin medicamentos.</strong></p>
+            <p class="muted">Ej. gotas cada 12 horas por 7 días. Te aviso puntual hasta que la marques.</p>
+          </div>
+          <details id="meds-done-section" class="done-section" hidden>
+            <summary>Tratamientos terminados (<span id="meds-done-count">0</span>)</summary>
+            <ul id="meds-done-list" class="tasks"></ul>
+          </details>
         </section>
 
         <div id="tasks-view">
@@ -86,6 +100,7 @@
       <div class="segmented" id="type-switch">
         <button type="button" data-type="task" class="active"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg> Pendiente</button>
         <button type="button" data-type="routine"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg> Rutina</button>
+        <button type="button" data-type="med"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg> Medicina</button>
       </div>
       <p class="kbd-hint">Atajos: <kbd>N</kbd> nuevo · <kbd>Enter</kbd> guardar · <kbd>Esc</kbd> cancelar</p>
       <input id="f-title" placeholder="¿Qué tienes que hacer?" maxlength="200" required autocomplete="off">
@@ -125,6 +140,26 @@
         <p class="hint">Te la recuerdo cada 15 min desde la primera hora hasta la hora límite. Entre horarios no te molesto. Si no la marcas a tiempo, te aviso que te la saltaste.</p>
         <label class="switch" id="pause-row" hidden><input type="checkbox" id="f-paused"> Pausar esta rutina</label>
       </div>
+      <div id="med-fields" class="fields" hidden>
+        <label class="label" for="f-every">¿Cada cuántas horas?</label>
+        <div class="chips" id="every-chips">
+          <button type="button" class="chip" data-h="4">4 h</button>
+          <button type="button" class="chip" data-h="6">6 h</button>
+          <button type="button" class="chip" data-h="8">8 h</button>
+          <button type="button" class="chip" data-h="12">12 h</button>
+          <button type="button" class="chip" data-h="24">24 h</button>
+        </div>
+        <input id="f-every" type="number" min="1" max="168" value="12" aria-label="Cada cuántas horas">
+        <label class="label">Primera toma</label>
+        <div class="row">
+          <input id="f-mdate" type="date" aria-label="Fecha de la primera toma">
+          <input id="f-mtime" type="time" value="09:30" aria-label="Hora de la primera toma">
+        </div>
+        <label class="label" for="f-mdays">¿Por cuántos días?</label>
+        <input id="f-mdays" type="number" min="1" max="365" value="7">
+        <p class="hint" id="med-preview"></p>
+        <label class="switch" id="mpause-row" hidden><input type="checkbox" id="f-mpaused"> Pausar este medicamento</label>
+      </div>
       <textarea id="f-notes" rows="2" placeholder="Notas (opcional)" maxlength="2000"></textarea>
       <div class="sheet-actions">
         <button type="button" id="delete-btn" class="btn danger" hidden>Eliminar</button>
@@ -152,6 +187,7 @@
         <li>Ya vencido: cada 30 min hasta completarlo</li>
         <li>Rutinas: un solo aviso cada 15 min mientras algún horario esté abierto (desde → hasta)</li>
         <li>Rutina sin hacer a tiempo: aviso de "te la saltaste"</li>
+        <li>Medicinas: 10 min antes, y a la hora cada 5 min hasta marcarla (aunque sea de noche)</li>
         <li>Silencio de 12 am a 6 am</li>
       </ul>
     </div>

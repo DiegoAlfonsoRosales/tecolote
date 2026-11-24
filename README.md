@@ -14,6 +14,7 @@ Pendientes con recordatorios **insistentes** por [ntfy](https://ntfy.sh): te avi
 | Ya vencido | cada 30 min | máxima |
 | Rutinas | un solo aviso desde las 7:00 (`WAKE_HOUR`), cada 15 min hasta su hora límite | alta (máxima a 30 min del límite) |
 | Rutina no hecha a tiempo | 1 aviso de "te la saltaste" | alta |
+| Medicina | 10 min antes; a la hora cada 5 min hasta marcarla (ignora el silencio); a la hora sin marcar: "no registraste" | máxima |
 
 - Silencio de **12 am a 6 am**. Sin hora, el pendiente vence al terminar el día.
 - Los avisos de un mismo pendiente **se reemplazan** en vez de apilarse (requiere ntfy 2.16+ en el cel) y se quitan al completarlo.

@@ -2,6 +2,11 @@
 
 Versiones: **X.0** cambios de estructura · **x.Y** cambios sencillos · **x.x.Z** cambios mínimos.
 
+## v2.2.0
+- **Medicinas** (pestaña nueva): nombre, cada cuántas horas, primera toma y por cuántos días. Tecolote calcula las tomas, muestra "Día X de N" y termina solo.
+- Avisos estrictos: 10 min antes, a la hora prioridad máxima cada 5 min hasta marcar "💊 Tomada", y "No registraste tu toma" si pasa 1 h. Suenan aunque sea de noche.
+- Sección "Medicinas de hoy" en Pendientes y tomas en el calendario .ics.
+
 ## v2.1.0
 - **Rutinas con varios horarios**: cada horario tiene "recuérdame desde" y "hasta (límite)". Ej. perro 07:00→08:30 y 20:00→22:00. Entre horarios no hay avisos.
 - Cada horario se marca por separado (en la app y con su botón ✅ en la notificación) y avisa por separado si te lo saltas. La racha cuenta los días con todos los horarios hechos.

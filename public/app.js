@@ -2,11 +2,13 @@
 const $ = (s) => document.querySelector(s);
 let tasks = [];
 let routines = [];
+let meds = [];
 let editingId = null;
 let currentTab = 'tasks';
 
 // Íconos SVG propios: los emojis no se ven en compus sin fuente de emojis (ej. Fedora).
 const ICONS = {
+  pill: '<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/>',
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
   flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
@@ -222,11 +224,88 @@ async function toggleSlot(r, slot) {
   }
 }
 
+// ---------- Medicinas ----------
+const DOSE_LABEL = { taken: 'Tomada', due: 'Ahora · márcala', soon: 'En unos minutos', upcoming: 'Pendiente', missed: 'No registrada' };
+
+/** Renglón de "Medicinas de hoy": una toma. */
+function doseItem({ md, dose }) {
+  const li = document.createElement('li');
+  li.className = `task med ${dose.state}`;
+  const check = document.createElement('button');
+  check.className = 'check';
+  check.textContent = '✓';
+  check.setAttribute('aria-label', dose.state === 'taken' ? 'Desmarcar' : 'Marcar como tomada');
+  check.onclick = () => toggleDose(md, dose);
+  const body = document.createElement('div');
+  body.className = 'task-body';
+  body.onclick = () => openEditor(md, 'med');
+  const title = document.createElement('div');
+  title.className = 'task-title';
+  title.textContent = `${md.name} · ${dose.time}`;
+  const meta = document.createElement('div');
+  meta.className = 'task-meta';
+  const when = document.createElement('span');
+  when.className = 'when';
+  when.textContent = DOSE_LABEL[dose.state];
+  meta.append(when, withIcon('pill', `Día ${dose.day} de ${md.days}`));
+  body.append(title, meta);
+  if (md.notes) {
+    const notes = document.createElement('div');
+    notes.className = 'task-notes';
+    notes.textContent = md.notes;
+    body.append(notes);
+  }
+  li.append(check, body);
+  return li;
+}
+
+/** Tarjeta de la pestaña Medicinas. */
+function medItem(md) {
+  const li = document.createElement('li');
+  li.className = `task med${md.finished ? ' done-today' : ''}${md.paused ? ' paused' : ''}`;
+  const body = document.createElement('div');
+  body.className = 'task-body';
+  body.onclick = () => openEditor(md, 'med');
+  const title = document.createElement('div');
+  title.className = 'task-title';
+  title.textContent = md.name;
+  const meta = document.createElement('div');
+  meta.className = 'task-meta';
+  const when = document.createElement('span');
+  when.className = 'when';
+  when.textContent = `Cada ${md.everyHours} h · ${md.times}`;
+  meta.append(when);
+  if (md.finished) meta.append(withIcon('pill', `Terminado (${md.days} días)`));
+  else if (md.next) {
+    meta.append(withIcon('pill', `Día ${md.next.day} de ${md.days}`));
+    const nx = new Date(md.next.at);
+    const isToday = isoDate(nx) === isoDate(new Date());
+    meta.append(withIcon('clock', `Siguiente: ${isToday ? 'hoy' : `${nx.getDate()} ${MON[nx.getMonth()]}`} ${md.next.time}`));
+  }
+  if (md.paused) meta.append(withIcon('pause', 'Pausada'));
+  body.append(title, meta);
+  li.append(body);
+  return li;
+}
+
+async function toggleDose(md, dose) {
+  const wasTaken = dose.state === 'taken';
+  try {
+    const updated = await api(`/api/meds/${md.id}/${wasTaken ? 'untake' : 'take'}`, { method: 'POST', body: { dose: dose.key } });
+    Object.assign(md, updated);
+    render();
+    if (!wasTaken) toast('¡Tomada!');
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
 function setTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   $('#tasks-view').hidden = tab !== 'tasks';
   $('#routines-view').hidden = tab !== 'routines';
+  $('#meds-view').hidden = tab !== 'meds';
   if (!editingId) resetEditor();
   try { localStorage.setItem('tecolote-tab', tab); } catch { /* sin almacenamiento */ }
 }
@@ -275,11 +354,27 @@ function render() {
     g.querySelector('.badge span').textContent = `${todaySlots.filter((x) => x.slot.state === 'done').length}/${todaySlots.length}`;
     colA.append(g);
   }
+  const todayDoses = meds
+    .filter((md) => !md.paused && !md.finished)
+    .flatMap((md) => md.today.map((dose) => ({ md, dose })))
+    .sort((a, b) => a.dose.time.localeCompare(b.dose.time));
+  if (todayDoses.length) {
+    const g = group('meds', 'Medicinas de hoy', todayDoses, doseItem);
+    g.querySelector('.badge span').textContent = `${todayDoses.filter((x) => x.dose.state === 'taken').length}/${todayDoses.length}`;
+    colA.prepend(g);
+  }
   if (overdue.length) colA.append(group('overdue', 'Vencidos', overdue));
   if (today.length) colA.append(group('today', 'Hoy', today));
   if (upcoming.length) colB.append(group('upcoming', 'Próximos', upcoming));
 
-  $('#empty').hidden = open.length > 0 || todaySlots.length > 0;
+  $('#empty').hidden = open.length > 0 || todaySlots.length > 0 || todayDoses.length > 0;
+  const activeMeds = meds.filter((md) => !md.finished);
+  const doneMeds = meds.filter((md) => md.finished);
+  $('#med-list').replaceChildren(...activeMeds.map(medItem));
+  $('#meds-empty').hidden = activeMeds.length > 0;
+  $('#meds-done-section').hidden = doneMeds.length === 0;
+  $('#meds-done-count').textContent = doneMeds.length;
+  $('#meds-done-list').replaceChildren(...doneMeds.map(medItem));
   $('#routine-list').replaceChildren(...[...routines].sort(byTime).map((r) => routineItem(r)));
   $('#routines-empty').hidden = routines.length > 0;
   $('#done-section').hidden = done.length === 0;
@@ -299,7 +394,7 @@ function render() {
 }
 
 async function load() {
-  [tasks, routines] = await Promise.all([api('/api/tasks'), api('/api/routines')]);
+  [tasks, routines, meds] = await Promise.all([api('/api/tasks'), api('/api/routines'), api('/api/meds')]);
   render();
 }
 
@@ -394,7 +489,7 @@ function placeForm() {
 }
 wide.addEventListener('change', () => { placeForm(); resetEditor(); });
 
-const defaultType = () => (currentTab === 'routines' ? 'routine' : 'task');
+const defaultType = () => ({ routines: 'routine', meds: 'med' }[currentTab] || 'task');
 
 function closeEditor() {
   if (isWide()) resetEditor();
@@ -418,22 +513,67 @@ function renderDays() {
 
 function setType(type) {
   editType = type;
-  const isRoutine = type === 'routine';
   document.querySelectorAll('#type-switch button').forEach((b) => b.classList.toggle('active', b.dataset.type === type));
-  $('#task-fields').hidden = isRoutine;
-  $('#routine-fields').hidden = !isRoutine;
-  $('#f-date').required = !isRoutine;
-  $('#f-title').placeholder = isRoutine ? '¿Qué haces cada día? (ej. tender la cama)' : '¿Qué tienes que hacer?';
-  const noun = isRoutine ? 'rutina' : 'pendiente';
-  $('#sheet-title').textContent = editingId ? `Editar ${noun}` : `${isRoutine ? 'Nueva' : 'Nuevo'} ${noun}`;
+  $('#task-fields').hidden = type !== 'task';
+  $('#routine-fields').hidden = type !== 'routine';
+  $('#med-fields').hidden = type !== 'med';
+  $('#f-date').required = type === 'task';
+  $('#f-title').placeholder = {
+    task: '¿Qué tienes que hacer?',
+    routine: '¿Qué haces cada día? (ej. tender la cama)',
+    med: '¿Qué medicina? (ej. gotas para los ojos)',
+  }[type];
+  $('#f-notes').placeholder = type === 'med' ? 'Dosis (opcional, ej. 1 gota en cada ojo)' : 'Notas (opcional)';
+  const [noun, fem] = { task: ['pendiente', false], routine: ['rutina', true], med: ['medicina', true] }[type];
+  $('#sheet-title').textContent = editingId ? `Editar ${noun}` : `${fem ? 'Nueva' : 'Nuevo'} ${noun}`;
+  if (type === 'med') medPreview();
 }
+
+// ---------- Formulario de medicinas ----------
+function renderEvery() {
+  document.querySelectorAll('#every-chips .chip').forEach((c) => c.classList.toggle('active', c.dataset.h === $('#f-every').value));
+}
+function medPreview() {
+  const every = parseInt($('#f-every').value, 10);
+  const days = parseInt($('#f-mdays').value, 10);
+  const [y, mo, d] = ($('#f-mdate').value || isoDate(new Date())).split('-').map(Number);
+  const [h, mi] = ($('#f-mtime').value || '09:30').split(':').map(Number);
+  if (!every || !days) { $('#med-preview').textContent = ''; return; }
+  const start = new Date(y, mo - 1, d, h, mi);
+  const end = new Date(start.getTime() + days * 86400000);
+  const times = new Set();
+  let count = 0;
+  let last = start;
+  for (let t = new Date(start); t < end && count < 500; t = new Date(t.getTime() + every * 3600000)) {
+    if (count < Math.ceil(24 / every)) times.add(`${pad(t.getHours())}:${pad(t.getMinutes())}`);
+    count++;
+    last = t;
+  }
+  const list = [...times].sort();
+  const label = list.length > 1 ? `${list.slice(0, -1).join(', ')} y ${list[list.length - 1]}` : list[0];
+  $('#med-preview').textContent = `Tomas a las ${label} · ${count} en total · última el ${last.getDate()} ${MON[last.getMonth()]} a las ${pad(last.getHours())}:${pad(last.getMinutes())}.`;
+}
+document.querySelectorAll('#every-chips .chip').forEach((c) => {
+  c.onclick = () => { $('#f-every').value = c.dataset.h; renderEvery(); medPreview(); };
+});
+['#f-every', '#f-mdays', '#f-mdate', '#f-mtime'].forEach((sel) => {
+  $(sel).addEventListener('input', () => { renderEvery(); medPreview(); });
+});
 
 function fillEditor(item, type) {
   editingId = item ? item.id : null;
   $('#type-switch').hidden = !!item; // al editar no se cambia el tipo
-  $('#f-title').value = item ? item.title : '';
-  $('#f-notes').value = item ? item.notes : '';
-  if (type === 'routine') {
+  $('#f-title').value = item ? item.title || item.name : '';
+  $('#f-notes').value = item ? item.notes || '' : '';
+  if (type === 'med') {
+    $('#f-every').value = item ? item.everyHours : 12;
+    $('#f-mdate').value = item ? item.startDate : isoDate(new Date());
+    $('#f-mtime').value = item ? item.firstTime : '09:30';
+    $('#f-mdays').value = item ? item.days : 7;
+    $('#f-mpaused').checked = !!(item && item.paused);
+    $('#mpause-row').hidden = !item;
+    renderEvery();
+  } else if (type === 'routine') {
     slots = item ? item.slots.map((sl) => ({ ...sl, auto: false })) : [{ from: fromMins(wakeHour * 60), until: '08:30', auto: true }];
     renderSlots();
     selectedDays = new Set(item ? item.days : [1, 2, 3, 4, 5]);
@@ -490,7 +630,23 @@ sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); 
 $('#task-form').onsubmit = async (e) => {
   e.preventDefault();
   try {
-    if (editType === 'routine') {
+    if (editType === 'med') {
+      const body = {
+        name: $('#f-title').value,
+        everyHours: parseInt($('#f-every').value, 10),
+        startDate: $('#f-mdate').value,
+        firstTime: $('#f-mtime').value,
+        days: parseInt($('#f-mdays').value, 10),
+        notes: $('#f-notes').value,
+      };
+      if (editingId) {
+        body.paused = $('#f-mpaused').checked;
+        Object.assign(meds.find((x) => x.id === editingId), await api(`/api/meds/${editingId}`, { method: 'PATCH', body }));
+      } else {
+        meds.push(await api('/api/meds', { method: 'POST', body }));
+        toast('Medicina agendada. Te aviso puntual');
+      }
+    } else if (editType === 'routine') {
       if (!selectedDays.size) throw new Error('Elige al menos un día');
       const body = { title: $('#f-title').value, slots: slots.map(({ id, from, until }) => ({ id, from, until })), days: [...selectedDays], notes: $('#f-notes').value };
       if (editingId) {
@@ -519,6 +675,16 @@ $('#task-form').onsubmit = async (e) => {
 };
 
 $('#delete-btn').onclick = async () => {
+  if (editType === 'med') {
+    const md = meds.find((x) => x.id === editingId);
+    if (!window.confirm(`¿Eliminar "${md.name}"?`)) return;
+    await api(`/api/meds/${editingId}`, { method: 'DELETE' });
+    meds = meds.filter((x) => x.id !== editingId);
+    closeEditor();
+    render();
+    toast('Medicina eliminada');
+    return;
+  }
   if (editType === 'routine') {
     const r = routines.find((x) => x.id === editingId);
     if (!window.confirm(`¿Eliminar la rutina "${r.title}"? Se pierde su racha.`)) return;
@@ -641,7 +807,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && !$
 setInterval(() => { if (!document.hidden && !$('#app').hidden) load(); }, 60000);
 
 placeForm();
-try { if (localStorage.getItem('tecolote-tab') === 'routines') currentTab = 'routines'; } catch { /* nada */ }
+try { const t = localStorage.getItem('tecolote-tab'); if (t === 'routines' || t === 'meds') currentTab = t; } catch { /* nada */ }
 setTab(currentTab);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 init();

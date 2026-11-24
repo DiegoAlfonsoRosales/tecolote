@@ -8,6 +8,7 @@ const { Store } = require('./lib/store');
 const reminders = require('./lib/reminders');
 const ntfy = require('./lib/ntfy');
 const { buildCalendar } = require('./lib/ics');
+const meds = require('./lib/meds');
 
 const PORT = parseInt(process.env.PORT || '8088', 10);
 const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
@@ -145,6 +146,61 @@ function routineView(r, now = new Date()) {
   };
 }
 
+function cleanMed(body, partial = false) {
+  const out = {};
+  if (!partial || body.name !== undefined) {
+    const name = String(body.name || '').trim().slice(0, 200);
+    if (!name) throw new Error('El medicamento necesita un nombre');
+    out.name = name;
+  }
+  if (!partial || body.everyHours !== undefined) {
+    const h = Number(body.everyHours);
+    if (!Number.isInteger(h) || h < 1 || h > 168) throw new Error('Cada cuántas horas: número inválido');
+    out.everyHours = h;
+  }
+  if (!partial || body.firstTime !== undefined) {
+    if (!HHMM_RE.test(body.firstTime || '')) throw new Error('Hora inválida');
+    out.firstTime = body.firstTime;
+  }
+  if (!partial || body.startDate !== undefined) {
+    if (!DATE_RE.test(body.startDate || '')) throw new Error('Fecha inválida');
+    out.startDate = body.startDate;
+  }
+  if (!partial || body.days !== undefined) {
+    const d = Number(body.days);
+    if (!Number.isInteger(d) || d < 1 || d > 365) throw new Error('Días de tratamiento: número inválido');
+    out.days = d;
+  }
+  if (body.notes !== undefined) out.notes = String(body.notes || '').slice(0, 500);
+  if (body.paused !== undefined) out.paused = !!body.paused;
+  return out;
+}
+
+function medView(m, now = new Date()) {
+  return {
+    ...m,
+    times: meds.timesLabel(m),
+    today: meds.dosesToday(m, now),
+    next: meds.nextDose(m, now),
+    finished: meds.isFinished(m, now),
+  };
+}
+
+const medSeq = (id) => `med-${id}`;
+
+function markDose(id, key, taken) {
+  const m = store.getMed(id);
+  const valid = meds.doses(m).map(meds.doseKey);
+  // Sin toma indicada: la que está sonando ahora o la más próxima.
+  const now = new Date();
+  const target = valid.includes(key) ? key : (meds.nextDose(m, now) || {}).key;
+  if (!target) return m;
+  const takenKeys = m.takenKeys.filter((k) => k !== target);
+  if (taken) takenKeys.push(target);
+  if (taken) ntfy.clear(medSeq(id));
+  return store.updateMed(id, { takenKeys });
+}
+
 /** Sin horario indicado: el abierto ahora, si no el último que ya empezó sin hacer, si no el siguiente. */
 function pickSlot(r, now) {
   const today = reminders.slotsToday(r, now);
@@ -264,6 +320,31 @@ async function tick() {
         console.error(`[error ntfy] rutinas: ${err.message}`);
       }
     }
+    for (const m of store.meds) {
+      const alert = meds.medAlert(m, now);
+      if (!alert) continue;
+      try {
+        const msg = meds.buildMedMessage(m, alert, now);
+        const actions = alert.kind === 'missed' ? [] : [{
+          action: 'http',
+          label: '💊 Tomada',
+          url: `${PUBLIC_URL}/api/mhook/${m.id}/take?d=${encodeURIComponent(alert.key)}&t=${actionToken(m.id, 'mtake')}`,
+          method: 'POST',
+          clear: true,
+        }];
+        await ntfy.publish({ sequenceId: medSeq(m.id), ...msg, actions: [...actions, openAction] });
+        const n = { ...(m.notified[alert.key] || {}) };
+        if (alert.kind === 'pre') n.pre = true;
+        if (alert.kind === 'due') n.lastNag = now.toISOString();
+        if (alert.kind === 'missed') n.missed = true;
+        // Solo se guardan los avisos de los últimos días.
+        const notified = Object.fromEntries(Object.entries({ ...m.notified, [alert.key]: n }).slice(-60));
+        store.updateMed(m.id, { notified });
+        console.log(`[medicamento ${alert.kind}] ${m.name} ${alert.key}`);
+      } catch (err) {
+        console.error(`[error ntfy] ${m.name}: ${err.message}`);
+      }
+    }
     for (const it of reminders.missedItems(store.routines, now)) {
       const r = it.routine;
       try {
@@ -376,7 +457,16 @@ async function handle(req, res) {
   if (cal && m === 'GET') {
     if (!safeEqual(cal[1], calToken())) return send(res, 404, { error: 'No encontrado' });
     res.writeHead(200, { 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'no-store' });
-    return res.end(buildCalendar(store.all(), store.routines));
+    return res.end(buildCalendar(store.all(), store.routines, store.meds));
+  }
+
+  const mhook = p.match(/^\/api\/mhook\/([\w-]+)\/take$/);
+  if (mhook && m === 'POST') {
+    const id = mhook[1];
+    if (!safeEqual(url.searchParams.get('t') || '', actionToken(id, 'mtake'))) return send(res, 403, { error: 'Token inválido' });
+    if (!store.getMed(id)) return send(res, 404, { error: 'No existe' });
+    markDose(id, url.searchParams.get('d'), true);
+    return send(res, 200, { ok: true });
   }
 
   const rhook = p.match(/^\/api\/rhook\/([\w-]+)\/done$/);
@@ -424,6 +514,24 @@ async function handle(req, res) {
       if (!action && m === 'PATCH') return send(res, 200, routineView(store.updateRoutine(id, cleanRoutine(await readBody(req), true))));
       if (!action && m === 'DELETE') {
         store.removeRoutine(id);
+        return send(res, 204);
+      }
+    }
+
+    if (p === '/api/meds' && m === 'GET') return send(res, 200, store.meds.map((x) => medView(x)));
+    if (p === '/api/meds' && m === 'POST') return send(res, 201, medView(store.createMed(cleanMed(await readBody(req)))));
+    const md = p.match(/^\/api\/meds\/([\w-]+)(?:\/(take|untake))?$/);
+    if (md) {
+      const [, id, action] = md;
+      if (!store.getMed(id)) return send(res, 404, { error: 'No existe' });
+      if (action && m === 'POST') {
+        const body = await readBody(req);
+        return send(res, 200, medView(markDose(id, body.dose, action === 'take')));
+      }
+      if (!action && m === 'PATCH') return send(res, 200, medView(store.updateMed(id, cleanMed(await readBody(req), true))));
+      if (!action && m === 'DELETE') {
+        ntfy.clear(medSeq(id));
+        store.removeMed(id);
         return send(res, 204);
       }
     }

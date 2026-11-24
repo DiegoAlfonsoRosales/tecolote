@@ -297,3 +297,20 @@ kbd {
 .slot-row, .slot-head { display: grid; grid-template-columns: 1fr auto 1fr 34px; gap: 8px; align-items: center; }
 .slot-head { font-size: 12px; color: var(--muted); margin-bottom: -4px; }
 .slot-row input { padding: 10px 8px; }
+
+/* ---------- v2.2: medicinas ---------- */
+:root { --med: #8b5cf6; }
+@media (prefers-color-scheme: dark) { :root { --med: #b197fc; } }
+.group.meds .group-title { color: var(--med); }
+.task.med { border-left-color: var(--med); }
+.task.med .check { border-color: var(--med); }
+.task.med.taken, .task.med.done-today { opacity: .6; box-shadow: none; }
+.task.med.taken .task-title { text-decoration: line-through; }
+.task.med.taken .check { background: var(--ok); border-color: var(--ok); color: #fff; }
+.task.med.due { border-left-color: var(--overdue); background: var(--overdue-bg); }
+.task.med.due .when { color: var(--overdue); font-weight: 700; }
+.task.med.due .check { border-color: var(--overdue); }
+.task.med.soon .when { color: var(--today); font-weight: 600; }
+.task.med.missed .when { color: var(--overdue); }
+.task.med.upcoming { opacity: .75; }
+.tab { font-size: 14px; padding: 9px 6px; }
